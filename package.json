@@ -2,6 +2,7 @@
   "name": "oddy-api",
   "version": "0.1.0",
   "description": "ODDY.AI — Prediction Market Intelligence Layer API",
+  "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
