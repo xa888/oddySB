@@ -132,7 +132,7 @@ export function normalizeActivity(raw: Record<string, unknown>, venue: Platform)
 // ─── Merge enrichment into base trader ───────────────────────────────────────
 
 export function mergeTraderProfiles(base: Trader, enrichments: Partial<Trader>[]): Trader {
-  return enrichments.reduce((acc, e) => ({ ...acc, ...e }), base);
+  return enrichments.reduce<Trader>((acc, e) => ({ ...acc, ...e } as Trader), base);
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
