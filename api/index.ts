@@ -6,7 +6,6 @@ import { leaderboardRoutes } from "../src/routes/leaderboard.js";
 import { walletRoutes } from "../src/routes/wallet.js";
 import { searchRoutes } from "../src/routes/search.js";
 
-// Fastify instance reused across warm invocations
 const app = Fastify({ logger: false });
 let ready = false;
 
@@ -26,6 +25,16 @@ async function init() {
 }
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
-  await init();
-  app.server.emit("request", req, res);
+  try {
+    await init();
+    app.server.emit("request", req, res);
+  } catch (err: unknown) {
+    // Surface the real crash message so it's visible in the response body
+    const message = err instanceof Error ? (err.stack ?? err.message) : String(err);
+    console.error("[oddy] handler crash:", message);
+    if (!res.headersSent) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, error: message }));
+    }
+  }
 }
