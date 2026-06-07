@@ -1,6 +1,7 @@
 {
+  "outputDirectory": ".",
   "rewrites": [
-    { "source": "/health",     "destination": "/api/index" },
-    { "source": "/v1/:path*",  "destination": "/api/index" }
+    { "source": "/health",    "destination": "/api/index" },
+    { "source": "/v1/:path*", "destination": "/api/index" }
   ]
 }
