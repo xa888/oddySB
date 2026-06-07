@@ -1,4 +1,4 @@
-import { Redis } from "ioredis";
+import Redis from "ioredis";
 
 const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
 const DEFAULT_TTL = Number(process.env.CACHE_DEFAULT_TTL_S ?? 60);
