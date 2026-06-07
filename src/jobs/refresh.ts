@@ -1,12 +1,22 @@
 import { Queue, Worker } from "bullmq";
-import { getRedis } from "../cache/redis.js";
 import * as tatum from "../providers/tatum.js";
 import * as synthesis from "../providers/synthesis.js";
 import { cacheSet } from "../cache/redis.js";
 
-const connection = getRedis();
+// Pass plain options so BullMQ uses its own bundled ioredis internally.
+// Passing a Redis instance from our top-level ioredis causes a type
+// conflict because bullmq vendors its own copy of ioredis.
+function redisConnection() {
+  const url = new URL(process.env.REDIS_URL ?? "redis://localhost:6379");
+  return {
+    host: url.hostname,
+    port: parseInt(url.port || "6379", 10),
+    ...(url.password ? { password: decodeURIComponent(url.password) } : {}),
+    ...(url.username ? { username: decodeURIComponent(url.username) } : {}),
+  };
+}
 
-export const refreshQueue = new Queue("oddy:refresh", { connection });
+export const refreshQueue = new Queue("oddy:refresh", { connection: redisConnection() });
 
 // ─── Schedule recurring refresh jobs ─────────────────────────────────────────
 
@@ -43,10 +53,10 @@ export const refreshWorker = new Worker(
       }
 
       case "stats:refresh": {
-        // Stats are synthetic for now — just touch the TTL
+        // Stats are synthetic — no upstream call needed yet
         break;
       }
     }
   },
-  { connection },
+  { connection: redisConnection() },
 );
