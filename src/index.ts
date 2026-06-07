@@ -1,0 +1,54 @@
+import Fastify from "fastify";
+import cors from "@fastify/cors";
+import rateLimit from "@fastify/rate-limit";
+import { getRedis } from "./cache/redis.js";
+import { statsRoutes } from "./routes/stats.js";
+import { leaderboardRoutes } from "./routes/leaderboard.js";
+import { walletRoutes } from "./routes/wallet.js";
+import { searchRoutes } from "./routes/search.js";
+import { scheduleRefreshJobs } from "./jobs/refresh.js";
+
+const PORT = Number(process.env.PORT ?? 3000);
+
+const app = Fastify({
+  logger: {
+    level: process.env.NODE_ENV === "production" ? "warn" : "info",
+  },
+});
+
+await app.register(cors, {
+  origin: process.env.CORS_ORIGIN ?? "*",
+  methods: ["GET"],
+});
+
+await app.register(rateLimit, {
+  max: 100,
+  timeWindow: "1 minute",
+});
+
+// Health check
+app.get("/health", async () => ({ ok: true, ts: Date.now() }));
+
+// API v1 routes
+await app.register(statsRoutes,       { prefix: "/v1" });
+await app.register(leaderboardRoutes, { prefix: "/v1/leaderboard" });
+await app.register(walletRoutes,      { prefix: "/v1/wallet" });
+await app.register(searchRoutes,      { prefix: "/v1" });
+
+// Connect to Redis and start background jobs
+try {
+  await getRedis().ping();
+  scheduleRefreshJobs();
+  app.log.info("[jobs] background refresh workers started");
+} catch {
+  app.log.warn("[redis] unavailable — running without cache");
+}
+
+// Start server
+try {
+  await app.listen({ port: PORT, host: "0.0.0.0" });
+  app.log.info(`ODDY API running on http://0.0.0.0:${PORT}`);
+} catch (err) {
+  app.log.error(err);
+  process.exit(1);
+}

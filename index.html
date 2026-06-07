@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ODDY.AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800;900&family=Space+Mono:wght@400;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+// ─── DESIGN TOKENS ───────────────────────────────────────────────────────────
+const C = {
+  bg:"#070705", bgDeep:"#040403", bgCard:"#0d0d0a", bgCardB:"#131310", bgCardC:"#191916", bgCardD:"#1f1f1b",
+  border:"rgba(195,158,48,0.09)", borderB:"rgba(195,158,48,0.17)", borderC:"rgba(195,158,48,0.05)", borderHi:"rgba(195,158,48,0.28)",
+  gold:"#c9983a", goldB:"#daa93f", goldC:"#ebbe54",
+  goldDim:"rgba(201,152,58,0.10)", goldGlow:"rgba(201,152,58,0.06)", goldPop:"rgba(201,152,58,0.18)",
+  green:"#3ebf81", greenDim:"rgba(62,191,129,0.09)",
+  red:"#d94f4f",   redDim:"rgba(217,79,79,0.09)",
+  blue:"#527cd9",  blueDim:"rgba(82,124,217,0.09)",
+  purple:"#8a6ed4",purpleDim:"rgba(138,110,212,0.09)",
+  text:"#ede8d8", textSub:"#a09880", textDim:"#6a6350", textMute:"#3a3828",
+  // legacy aliases used by ported components
+  amber:"#c9983a", amberDim:"rgba(201,152,58,0.10)", amberGlow:"rgba(201,152,58,0.06)",
+  surface:"#0d0d0a", surfaceB:"#131310", surfaceC:"#191916",
+};
+const F = { display:"'Syne', sans-serif", mono:"'Space Mono', monospace", body:"'DM Sans', sans-serif" };
+
+// ─── DATA ────────────────────────────────────────────────────────────────────
+const ECOSYSTEMS = [
+  {id:"polymarket",  label:"Polymarket",  color:"#c9983a", chain:"Polygon",   tvl:"$2.1B"},
+  {id:"kalshi",      label:"Kalshi",      color:"#c45c87", chain:"Regulated", tvl:"$890M"},
+  {id:"hyperliquid", label:"Hyperliquid", color:"#3dba7a", chain:"HyperEVM",  tvl:"$3.4B"},
+  {id:"limitless",   label:"Limitless",   color:"#527cd9", chain:"Base",      tvl:"$44M" },
+  {id:"predict",     label:"Predict",     color:"#3dba7a", chain:"BNB",       tvl:"$88M" },
+  {id:"opinion",     label:"Opinion",     color:"#8a6ed4", chain:"Solana",    tvl:"$31M" },
+];
+const ECO_COLOR = Object.fromEntries(ECOSYSTEMS.map(e=>[e.id,e.color]));
+
+const OUTCOME_TOKENS=[
+  {name:"Will BTC reach $120,000 before Jan 1, 2027?",side:"YES",market:"polymarket",price:0.67},
+  {name:"Fed rate cut at September 2026 FOMC?",       side:"NO", market:"kalshi",    price:0.38},
+  {name:"Spot ETH ETF net flows positive in Q3?",     side:"YES",market:"limitless", price:0.71},
+  {name:"US recession declared before Dec 2026?",     side:"YES",market:"hyperliquid",price:0.29},
+  {name:"NVDA above $200 on Dec 31, 2026?",           side:"YES",market:"predict",   price:0.62},
+  {name:"SOL market cap flips ETH before EOY?",       side:"NO", market:"polymarket",price:0.18},
+  {name:"Apple stock hits $300 in 2026?",             side:"YES",market:"kalshi",    price:0.44},
+  {name:"US Crypto Strategic Reserve established?",   side:"YES",market:"opinion",   price:0.53},
+  {name:"Trump signs crypto market structure bill?",  side:"YES",market:"polymarket",price:0.72},
+  {name:"BlackRock BUIDL fund AUM exceeds $10B?",     side:"YES",market:"limitless", price:0.55},
+  {name:"Base chain daily txs surpass Ethereum L1?",  side:"YES",market:"hyperliquid",price:0.41},
+  {name:"Solana ETF approved in 2026?",               side:"NO", market:"kalshi",    price:0.33},
+];
+const PEER_WALLETS=["0xDead...Beef01","0xCafe...Babe02","0xFeed...Face03","0xBee5...1234a","0x9f3c...ab77e","0x7a11...cc02f","0xABCD...1234F","0x4F5D...99BC"];
+
+function sr(seed){const x=Math.sin(seed+1)*10000;return x-Math.floor(x);}
+function buildActivity(addr){
+  const s=addr.length*17;
+  const types=["BUY","SELL","RECEIVE","SEND","BUY","BUY","RECEIVE","SELL","SEND","BUY","RECEIVE","SELL","SELL","SEND","BUY","SELL"];
+  const mins=[2,6,11,19,28,41,55,68,87,106,132,158,192,225,261,290];
+  return types.map((type,i)=>{
+    const r=n=>sr(s*31+i*13+n);
+    const tok=OUTCOME_TOKENS[Math.floor(r(1)*OUTCOME_TOKENS.length)];
+    const peer=PEER_WALLETS[Math.floor(r(2)*PEER_WALLETS.length)];
+    const qty=Math.floor(r(3)*12000+800),price=+(r(4)*0.78+0.10).toFixed(3),value=Math.floor(qty*price);
+    const pos=r(6)>0.38;
+    const pnlAmt=type==="SELL"?Math.floor(r(7)*3200+80):null;
+    const pnlPctVal=type==="SELL"?Math.floor(r(8)*180+10):null;
+    const pnl=type==="SELL"?(pos?"+":"-")+"$"+pnlAmt.toLocaleString():null;
+    const pnlPct=type==="SELL"?(pos?pnlPctVal:-pnlPctVal):null;
+    const hash=Array.from({length:8},(_,k)=>"0123456789abcdef"[Math.floor(r(8+k)*16)]).join("");
+    return{type,tok,peer,qty,price,value,pnl,pnlPct,pnlPos:pos,minsAgo:mins[i],hash:`0x${hash}...${hash.slice(-4)}`};
+  });
+}
+
+const WALLETS={
+  "0xA1b2c3d4e5f6789abc":{
+    handle:"@winstony",address:"0xA1b2...789abc",eco:"polymarket",winRate:73,riskScore:87,
+    volume:"50.2M",pnl:"18,420",pnlPct:"500",tags:["INSIDER","HIGH ROI","WHALE"],
+    linked:[
+      {addr:"0xDead...Beef01",txs:80,vol:"12,400",side:"SELL",pnl:"+4,200",pct:"+340"},
+      {addr:"0xCafe...Babe02",txs:54,vol:"8,100", side:"BUY", pnl:"+7,800",pct:"+620"},
+      {addr:"0xFeed...Face03",txs:31,vol:"3,500", side:"SELL",pnl:"+1,100",pct:"+180"},
+    ],
+    graph:{root:{addr:"0xA1b2...789abc",label:"@winstony"},children:[{addr:"0xDead...Beef01",txs:35,vol:"$8,500",side:"BUY",pnl:"+$4,200",pct:"+340%",children:[{addr:"0xFeed...Face03",txs:80,vol:"$3,200",side:"SELL",pnl:"-$1,100",pct:"-88%"},{addr:"0xCafe...Babe02",txs:54,vol:"$5,100",side:"SELL",pnl:"-$2,700",pct:"-210%"},{addr:"0xBee5...1234a",txs:22,vol:"$1,800",side:"SELL",pnl:"-$890",pct:"-71%"}]}]},
+    positions:{
+      open:[
+        {id:"PM-4821",title:"Will BTC reach $120,000 before Jan 1, 2027?",  eco:"polymarket", side:"YES",size:4200, entry:0.31,current:0.67,pnl:+1512,pnlPct:+116,expiry:"Dec 31 · 23:59",confidence:82},
+        {id:"KL-9912",title:"Trump signs crypto market structure bill?",     eco:"kalshi",     side:"YES",size:6800, entry:0.48,current:0.72,pnl:+1632,pnlPct:+50, expiry:"Jun 30 · 20:00",confidence:74},
+        {id:"PR-2214",title:"NVDA above $200 on Dec 31, 2026?",             eco:"predict",    side:"YES",size:3100, entry:0.58,current:0.62,pnl:+124, pnlPct:+7,  expiry:"Dec 31 · 16:30",confidence:62},
+        {id:"PM-7734",title:"SOL market cap flips ETH before EOY?",         eco:"polymarket", side:"NO", size:900,  entry:0.72,current:0.82,pnl:+90,  pnlPct:+12, expiry:"Dec 31 · 18:00",confidence:55},
+        {id:"HL-0041",title:"Base chain daily txs surpass Ethereum L1?",    eco:"hyperliquid",side:"YES",size:1400, entry:0.36,current:0.41,pnl:+70,  pnlPct:+14, expiry:"Sep 30 · 12:00",confidence:48},
+      ],
+      closed:[
+        {id:"KL-1102",title:"Fed holds rates at May 2026 FOMC meeting?",    eco:"kalshi",     side:"YES",size:5500, entry:0.38,exit:0.91,pnl:+2915,pnlPct:+140,closedAt:"3 days ago",  won:true },
+        {id:"OP-0558",title:"US Crypto Strategic Reserve established?",      eco:"opinion",    side:"YES",size:2200, entry:0.31,exit:0.53,pnl:+484, pnlPct:+71, closedAt:"6 days ago",  won:true },
+        {id:"HL-3391",title:"ETH ETF net inflows positive April 2026?",     eco:"hyperliquid",side:"YES",size:8800, entry:0.62,exit:0.98,pnl:+3168,pnlPct:+58, closedAt:"2 weeks ago", won:true },
+        {id:"PM-6612",title:"Polymarket Q1 2026 volume exceeds $500M?",     eco:"polymarket", side:"NO", size:1200, entry:0.24,exit:0.07,pnl:+204, pnlPct:+71, closedAt:"3 weeks ago", won:true },
+        {id:"LM-0093",title:"BlackRock BUIDL AUM exceeds $10B by Q2 2026?", eco:"limitless",  side:"YES",size:3400, entry:0.67,exit:0.22,pnl:-1530,pnlPct:-67, closedAt:"1 month ago", won:false},
+      ],
+    },
+    rewards:[
+      {type:"Liquidity reward",market:"Will BTC reach $120,000 before Jan 2027?",   marketId:"PM-4821",eco:"polymarket", amount:8.40, status:"CLAIMED",time:"2h ago", txHash:"0x4f8a...d291"},
+      {type:"Maker rebate",    market:"Trump signs crypto market structure bill?",   marketId:"KL-9912",eco:"kalshi",     amount:14.22,status:"CLAIMED",time:"5h ago", txHash:"0xb13e...7700"},
+      {type:"LP fee share",    market:"Fed holds rates at May 2026 FOMC?",          marketId:"KL-1102",eco:"kalshi",     amount:22.80,status:"CLAIMED",time:"1d ago", txHash:"0xee09...8831"},
+      {type:"Liquidity reward",market:"US Crypto Strategic Reserve established?",   marketId:"OP-0558",eco:"opinion",    amount:3.15, status:"CLAIMED",time:"1d ago", txHash:"0x2d4f...0099"},
+      {type:"Maker rebate",    market:"ETH ETF net inflows positive April 2026?",   marketId:"HL-3391",eco:"hyperliquid",amount:31.70,status:"CLAIMED",time:"2d ago", txHash:"0xc840...ee21"},
+      {type:"LP fee share",    market:"NVDA above $200 on Dec 31, 2026?",           marketId:"PR-2214",eco:"predict",    amount:1.90, status:"PENDING",time:"3d ago", txHash:"0xd712...fa30"},
+      {type:"Liquidity reward",market:"Will BTC reach $120,000 before Jan 2027?",   marketId:"PM-4821",eco:"polymarket", amount:5.88, status:"CLAIMED",time:"4d ago", txHash:"0x8811...bc4e"},
+      {type:"Maker rebate",    market:"Polymarket Q1 2026 volume > $500M?",         marketId:"PM-6612",eco:"polymarket", amount:0.44, status:"FAILED", time:"5d ago", txHash:"0x3309...1122"},
+    ],
+  },
+  "vitalik.eth":{
+    handle:"@vitalik",address:"0xd8da...6aad93",eco:"hyperliquid",winRate:81,riskScore:62,
+    volume:"120M",pnl:"2,400,000",pnlPct:"800",tags:["WHALE","INSIDER","DeFi"],
+    linked:[
+      {addr:"0x1234...5678aa",txs:145,vol:"2.1M",side:"BUY", pnl:"+1.2M",pct:"+800"},
+      {addr:"0xabcd...ef1234",txs:60, vol:"900K",side:"SELL",pnl:"-300K",pct:"-200"},
+      {addr:"0xBee5...1234a", txs:28, vol:"420K",side:"BUY", pnl:"+180K",pct:"+430"},
+    ],
+    graph:{root:{addr:"0xd8da...6aad93",label:"@vitalik"},children:[{addr:"0x1234...5678aa",txs:145,vol:"$2.1M",side:"BUY",pnl:"+$1.2M",pct:"+800%",children:[{addr:"0xabcd...ef1234",txs:60,vol:"$900K",side:"SELL",pnl:"-$300K",pct:"-200%"},{addr:"0xBee5...1234a",txs:28,vol:"$420K",side:"BUY",pnl:"+$180K",pct:"+430%"}]}]},
+    positions:{
+      open:[
+        {id:"PM-4821",title:"Will BTC reach $120,000 before Jan 1, 2027?", eco:"polymarket", side:"YES",size:22000,entry:0.28,current:0.67,pnl:+8580,pnlPct:+139,expiry:"Dec 31 · 23:59",confidence:82},
+        {id:"KL-8834",title:"Apple stock reaches $300 by Dec 31, 2026?",   eco:"kalshi",     side:"YES",size:6500, entry:0.47,current:0.44,pnl:-195, pnlPct:-6,  expiry:"Dec 31 · 15:30",confidence:44},
+        {id:"HL-5512",title:"Solana ETF approved in calendar year 2026?",   eco:"hyperliquid",side:"NO", size:18000,entry:0.73,current:0.67,pnl:+1080,pnlPct:+8,  expiry:"Dec 31 · 23:59",confidence:67},
+      ],
+      closed:[
+        {id:"HL-3391",title:"ETH ETF net inflows positive April 2026?",    eco:"hyperliquid",side:"YES",size:44000,entry:0.62,exit:0.98,pnl:+15840,pnlPct:+58,closedAt:"2 weeks ago",won:true },
+        {id:"LM-0093",title:"Spot ETH ETF net flows positive Q3 2026?",    eco:"limitless",  side:"YES",size:9000, entry:0.42,exit:0.71,pnl:+2610, pnlPct:+69,closedAt:"3 weeks ago",won:true },
+        {id:"KL-9912",title:"Trump signs crypto market structure bill?",    eco:"kalshi",     side:"YES",size:12000,entry:0.52,exit:0.72,pnl:+2400, pnlPct:+38,closedAt:"1 month ago",won:true },
+        {id:"PM-7734",title:"SOL market cap flips ETH before EOY?",        eco:"polymarket", side:"YES",size:4100, entry:0.53,exit:0.18,pnl:-1435, pnlPct:-66,closedAt:"5 weeks ago",won:false},
+        {id:"OP-0112",title:"US Crypto Strategic Reserve established?",     eco:"opinion",    side:"YES",size:7500, entry:0.29,exit:0.53,pnl:+1800, pnlPct:+83,closedAt:"6 weeks ago",won:true },
+      ],
+    },
+    rewards:[
+      {type:"Liquidity reward",market:"Will BTC reach $120,000 before Jan 2027?",  marketId:"PM-4821",eco:"polymarket", amount:88.40, status:"CLAIMED",time:"1h ago", txHash:"0x9a1c...d401"},
+      {type:"Maker rebate",    market:"ETH ETF net inflows positive April 2026?",  marketId:"HL-3391",eco:"hyperliquid",amount:142.75,status:"CLAIMED",time:"2d ago", txHash:"0xbb22...5599"},
+      {type:"LP fee share",    market:"Spot ETH ETF net flows positive Q3 2026?",  marketId:"LM-0093",eco:"limitless",  amount:44.04, status:"CLAIMED",time:"3d ago", txHash:"0x3312...88dd"},
+      {type:"Liquidity reward",market:"Apple stock reaches $300 by Dec 31, 2026?", marketId:"KL-8834",eco:"kalshi",     amount:9.60,  status:"PENDING",time:"4d ago", txHash:"0xf900...0041"},
+      {type:"Maker rebate",    market:"Trump signs crypto market structure bill?",  marketId:"KL-9912",eco:"kalshi",     amount:18.30, status:"CLAIMED",time:"5d ago", txHash:"0x7a11...cc02"},
+      {type:"LP fee share",    market:"SOL market cap flips ETH before EOY?",      marketId:"PM-7734",eco:"polymarket", amount:4.18,  status:"FAILED", time:"1w ago", txHash:"0x1234...5678"},
+    ],
+  },
+};
+
+const TRENDING=[
+  {addr:"0xA1b2c3d4e5f6789abc",handle:"@winstony",    pnl:"+$18.4K",pct:"+500%",eco:"polymarket", flag:"HOT",  vol:"$50.2M",winRate:73,pos:8},
+  {addr:"vitalik.eth",         handle:"@vitalik",      pnl:"+$2.4M", pct:"+800%",eco:"hyperliquid",flag:"WHALE",vol:"$120M",  winRate:81,pos:12},
+  {addr:"0xCafe...Babe02",     handle:"@alpha_hunter", pnl:"+$85K",  pct:"+320%",eco:"kalshi",     flag:"NEW",  vol:"$4.1M",  winRate:68,pos:5},
+  {addr:"0xDead...Beef01",     handle:"@polyking",     pnl:"+$440K", pct:"+210%",eco:"limitless",  flag:"HOT",  vol:"$22M",   winRate:77,pos:9},
+];
+
+const REWARDS_LB=[
+  {id:"0x71c...A7bf",platform:"Polymarket", markets:14,pts:2840,lpVol:"$9.2M", rewards:88400,winRate:91.2,pnl:"+$142K",color:"#c9983a"},
+  {id:"0x342...184E",platform:"Kalshi",     markets:8, pts:1620,lpVol:"$4.1M", rewards:44200,winRate:74.8,pnl:"+$68K", color:"#3ebf81"},
+  {id:"0xf9a...2c11",platform:"Hyperliquid",markets:11,pts:1180,lpVol:"$3.6M", rewards:31800,winRate:68.5,pnl:"+$41K", color:"#527cd9"},
+  {id:"0xb88...9f2d",platform:"Polymarket", markets:6, pts:940, lpVol:"$2.8M", rewards:24100,winRate:82.3,pnl:"+$29K", color:"#8a6ed4"},
+  {id:"0xCC2...8812",platform:"Limitless",  markets:19,pts:820, lpVol:"$2.1M", rewards:19600,winRate:61.4,pnl:"+$18K", color:"#3ebf81"},
+];
+
+const LB_PLATFORMS=[
+  {id:"polymarket", label:"Polymarket", color:"#c9983a",chain:"Polygon"  },
+  {id:"kalshi",     label:"Kalshi",     color:"#c45c87",chain:"Regulated"},
+  {id:"hyperliquid",label:"Hyperliquid",color:"#3dba7a",chain:"HyperEVM" },
+  {id:"limitless",  label:"Limitless",  color:"#527cd9",chain:"Base"     },
+  {id:"predict",    label:"Predict",    color:"#3dba7a",chain:"BNB"      },
+  {id:"opinion",    label:"Opinion",    color:"#8a6ed4",chain:"Solana"   },
+];
+const LB_TIME=["1d","7d","30d","90d","180d","365d","all"];
+
+const LB_DATA=[
+  {handle:"@winstony",      address:"0xA1b2c3d4...789abc",totalPos:284,totalBuy:1420000,totalSell:1844600,winRate:79,realizedPnl:424600, pnlPct:29.9,avgPct:14.2,avgBuySize:5000,  lastActive:1,platform:"polymarket" },
+  {handle:"@polyking",      address:"0xDead1234...BeefAA",totalPos:198,totalBuy:990000, totalSell:1237500,winRate:74,realizedPnl:247500, pnlPct:25.0,avgPct:11.8,avgBuySize:5000,  lastActive:1,platform:"polymarket" },
+  {handle:"@macro_maven",   address:"0x7a3b9f1e...cc02f8",totalPos:89, totalBuy:2670000,totalSell:3472800,winRate:72,realizedPnl:802800, pnlPct:30.1,avgPct:18.4,avgBuySize:30000, lastActive:1,platform:"hyperliquid"},
+  {handle:"@alpha_hunter",  address:"0xCafe5678...Babe02",totalPos:213,totalBuy:640000, totalSell:768000, winRate:68,realizedPnl:128000, pnlPct:20.0,avgPct:9.1, avgBuySize:3000,  lastActive:2,platform:"kalshi"    },
+  {handle:"@quiet_whale",   address:"0x9f3c8812...ab77e1",totalPos:42, totalBuy:8800000,totalSell:12144000,winRate:81,realizedPnl:3344000,pnlPct:38.0,avgPct:22.6,avgBuySize:209524,lastActive:1,platform:"hyperliquid"},
+  {handle:"@vol_trader",    address:"0x4F5Dcc91...99BC2a",totalPos:441,totalBuy:882000, totalSell:1040760,winRate:65,realizedPnl:158760, pnlPct:18.0,avgPct:7.4, avgBuySize:2000,  lastActive:2,platform:"opinion"   },
+  {handle:"@arb_master",    address:"0xb88f2d09...9f2d44",totalPos:312,totalBuy:1560000,totalSell:2059200,winRate:77,realizedPnl:499200, pnlPct:32.0,avgPct:15.9,avgBuySize:5000,  lastActive:3,platform:"polymarket" },
+  {handle:"@basis_chad",    address:"0xCC218812...881233",totalPos:156,totalBuy:1248000,totalSell:1560000,winRate:71,realizedPnl:312000, pnlPct:25.0,avgPct:12.8,avgBuySize:8000,  lastActive:1,platform:"limitless"  },
+  {handle:"@event_sniper",  address:"0x71cA7bf0...A7bf22",totalPos:389,totalBuy:778000, totalSell:934560, winRate:63,realizedPnl:156560, pnlPct:20.1,avgPct:8.8, avgBuySize:2000,  lastActive:4,platform:"kalshi"    },
+  {handle:"@prediction_god",address:"0x342184E2...184E55",totalPos:74, totalBuy:3330000,totalSell:4662000,winRate:84,realizedPnl:1332000,pnlPct:40.0,avgPct:24.1,avgBuySize:45000, lastActive:1,platform:"polymarket" },
+  {handle:"@smart_money",   address:"0xf9a2c110...2c1199",totalPos:520,totalBuy:1040000,totalSell:1206400,winRate:61,realizedPnl:166400, pnlPct:16.0,avgPct:6.5, avgBuySize:2000,  lastActive:5,platform:"hyperliquid"},
+  {handle:"@delta_hedge",   address:"0x1234abcd...5678aa",totalPos:167,totalBuy:2505000,totalSell:3206400,winRate:76,realizedPnl:701400, pnlPct:28.0,avgPct:13.5,avgBuySize:15000, lastActive:2,platform:"limitless"  },
+  {handle:"@degen_lord",    address:"0xFeed1100...Face03",totalPos:788,totalBuy:1182000,totalSell:1311420,winRate:57,realizedPnl:129420, pnlPct:10.9,avgPct:4.2, avgBuySize:1500,  lastActive:1,platform:"opinion"   },
+  {handle:"@signal_nine",   address:"0xBee51234...1234ab",totalPos:93, totalBuy:1860000,totalSell:2530560,winRate:80,realizedPnl:670560, pnlPct:36.0,avgPct:20.8,avgBuySize:20000, lastActive:3,platform:"kalshi"    },
+  {handle:"@whale_watcher", address:"0x3b88f920...f92011",totalPos:51, totalBuy:6120000,totalSell:8200800,winRate:88,realizedPnl:2080800,pnlPct:34.0,avgPct:19.7,avgBuySize:120000,lastActive:2,platform:"polymarket" },
+  {handle:"@dark_horse",    address:"0xc840ee21...ee2133",totalPos:66, totalBuy:1320000,totalSell:1900800,winRate:85,realizedPnl:580800, pnlPct:44.0,avgPct:26.2,avgBuySize:20000, lastActive:1,platform:"kalshi"    },
+  {handle:"@pnl_king",      address:"0x8811bc4e...bc4eff",totalPos:128,totalBuy:3840000,totalSell:5337600,winRate:83,realizedPnl:1497600,pnlPct:39.0,avgPct:23.4,avgBuySize:30000, lastActive:1,platform:"hyperliquid"},
+  {handle:"@flow_state",    address:"0x9a71c210...c21044",totalPos:82, totalBuy:4100000,totalSell:5699000,winRate:82,realizedPnl:1599000,pnlPct:39.0,avgPct:23.1,avgBuySize:50000, lastActive:1,platform:"hyperliquid"},
+];
+
+function genLB(pid,tid){
+  const m={"1d":0.015,"7d":0.09,"30d":0.55,"90d":1.4,"180d":2.5,"365d":4.2,"all":7.0}[tid]||1;
+  const rows=LB_DATA
+    .filter(r=>pid==="polymarket"?true:r.platform===pid||Math.random()>0.4)
+    .map((r,i)=>{const s=(r.handle.length*31+i*17+r.totalPos)%999,j=0.88+(s%24)/100;return{...r,
+      totalBuy:Math.round(r.totalBuy*m*j),totalSell:Math.round(r.totalSell*m*j),
+      realizedPnl:Math.round(r.realizedPnl*m*j),avgBuySize:Math.round(r.avgBuySize*m*j),
+      totalPos:Math.max(1,Math.round(r.totalPos*Math.min(1,m*1.8))),
+      pnlPct:+(r.pnlPct*(0.9+(s%20)/100)).toFixed(1),avgPct:+(r.avgPct*(0.9+(s%20)/100)).toFixed(1),rank:0};})
+    .filter(r=>r.realizedPnl>0);
+  rows.sort((a,b)=>b.realizedPnl-a.realizedPnl);
+  rows.forEach((r,i)=>r.rank=i+1);
+  return rows;
+}
+
+function fu(v){const a=Math.abs(v);if(a>=1e6)return(v<0?"-":"")+"$"+(a/1e6).toFixed(2)+"M";if(a>=1000)return(v<0?"-":"")+"$"+(a/1e3).toFixed(1)+"K";return(v<0?"-$":"$")+a.toLocaleString();}
+function fp(v){return(v>=0?"+":"")+v.toFixed(1)+"%";}
+
+// ─── ATOMS ────────────────────────────────────────────────────────────────────
+function Tag({label,color}){
+  return <span style={{display:"inline-flex",alignItems:"center",gap:3,fontFamily:F.mono,fontSize:7.5,fontWeight:700,letterSpacing:0.8,color,background:`${color}12`,border:`1px solid ${color}28`,borderRadius:3,padding:"2px 6px",whiteSpace:"nowrap",flexShrink:0}}>{label}</span>;
+}
+function WinBar({val}){
+  const col=val>=75?C.green:val>=55?C.goldB:C.red;
+  return <div style={{display:"flex",alignItems:"center",gap:6}}>
+    <div style={{width:40,height:2,background:C.bgCardC,borderRadius:2,overflow:"hidden",flexShrink:0}}><div style={{width:`${val}%`,height:"100%",background:col,borderRadius:2}}/></div>
+    <span style={{fontFamily:F.mono,fontSize:10,color:col,fontWeight:700,minWidth:30,textAlign:"right"}}>{val}%</span>
+  </div>;
+}
+function Pnl({val,pct,size=12}){
+  const pos=val>=0,col=pos?C.green:C.red;
+  return <div style={{display:"inline-flex",alignItems:"baseline",gap:3,whiteSpace:"nowrap"}}>
+    <span style={{fontFamily:F.mono,fontSize:size,fontWeight:700,color:col,textShadow:`0 0 14px ${col}28`}}>{pos?"+":"-"}{fu(Math.abs(val))}</span>
+    <span style={{fontFamily:F.mono,fontSize:size-2.5,color:`${col}78`}}>({pct})</span>
+  </div>;
+}
+function TypeChip({type}){
+  const MAP={BUY:{c:C.green,bg:C.greenDim,i:"↑"},SELL:{c:C.red,bg:C.redDim,i:"↓"},RECEIVE:{c:C.blue,bg:C.blueDim,i:"←"},SEND:{c:C.gold,bg:C.goldDim,i:"→"}};
+  const m=MAP[type]||MAP.BUY;
+  return <span style={{display:"inline-flex",alignItems:"center",gap:4,background:m.bg,border:`1px solid ${m.c}25`,borderRadius:3,padding:"2px 7px",fontFamily:F.mono,fontSize:9,fontWeight:700,color:m.c}}><span>{m.i}</span>{type}</span>;
+}
+
+// ─── TOP NAV ─────────────────────────────────────────────────────────────────
+const NAV=[{id:"HOME",label:"Home"},{id:"LEADERBOARD",label:"Leaderboard"}];
+
+function TopNav({page,setPage,onAnalyze}){
+  const [q,setQ]=useState("");
+  const [focused,setFocused]=useState(false);
+  const go=()=>onAnalyze(q.trim()||"0xA1b2c3d4e5f6789abc");
+  return(
+    <nav style={{flexShrink:0,height:54,display:"flex",alignItems:"center",padding:"0 28px",gap:0,
+      background:C.bgDeep,borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,zIndex:200}}>
+      <div onClick={()=>setPage("HOME")} style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",marginRight:36,flexShrink:0,userSelect:"none"}}>
+        <div style={{width:26,height:26,borderRadius:6,background:`linear-gradient(145deg,${C.goldC},${C.gold} 55%,#8a6420)`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:F.display,fontWeight:900,fontSize:12,color:"#1a1100",boxShadow:`0 0 14px ${C.gold}55,0 2px 6px rgba(0,0,0,0.6)`}}>O</div>
+        <span style={{fontFamily:F.display,fontWeight:800,fontSize:14,letterSpacing:0.2}}><span style={{color:C.text}}>ODDY</span><span style={{color:C.gold}}>.AI</span></span>
+      </div>
+      <div style={{display:"flex",alignItems:"stretch",height:"100%",gap:2}}>
+        {NAV.map(n=>{
+          const active=page===n.id;
+          return(<button key={n.id} onClick={()=>setPage(n.id)}
+            style={{display:"flex",alignItems:"center",padding:"0 14px",background:"none",border:"none",cursor:"pointer",position:"relative",borderBottom:`2px solid ${active?C.gold:"transparent"}`,transition:"border-color .2s"}}
+            onMouseEnter={e=>{if(!active)e.currentTarget.style.borderBottomColor=C.gold+"38";}}
+            onMouseLeave={e=>{if(!active)e.currentTarget.style.borderBottomColor="transparent";}}>
+            <span style={{fontFamily:F.mono,fontSize:9,letterSpacing:1.5,textTransform:"uppercase",color:active?C.text:C.textDim,fontWeight:active?700:400,transition:"color .15s"}}>{n.label}</span>
+            {active&&<span style={{position:"absolute",bottom:0,left:"50%",transform:"translateX(-50%)",width:4,height:4,borderRadius:"50%",background:C.gold,boxShadow:`0 0 6px ${C.gold}`}}/>}
+          </button>);
+        })}
+      </div>
+      <div style={{width:1,height:18,background:C.border,margin:"0 24px",flexShrink:0}}/>
+      <div style={{display:"flex",alignItems:"center",gap:8,flex:1,maxWidth:300,background:focused?C.bgCardB:C.bgCard,border:`1px solid ${focused?C.borderHi:C.border}`,borderRadius:7,padding:"0 11px",boxShadow:focused?`0 0 0 3px ${C.goldGlow}`:"none",transition:"all .18s"}}>
+        <svg width="11" height="11" viewBox="0 0 14 14" fill="none" style={{flexShrink:0}}><circle cx="6" cy="6" r="4.5" stroke={focused?C.goldB:C.textDim} strokeWidth="1.5"/><path d="M9.5 9.5L12.5 12.5" stroke={focused?C.goldB:C.textDim} strokeWidth="1.5" strokeLinecap="round"/></svg>
+        <input value={q} onChange={e=>setQ(e.target.value)} onKeyDown={e=>e.key==="Enter"&&go()} onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)} placeholder="Search wallet, ENS, address…" style={{flex:1,background:"none",border:"none",outline:"none",fontFamily:F.mono,fontSize:9.5,color:C.text,padding:"8px 0",letterSpacing:0.2}}/>
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginLeft:16,flexShrink:0}}>
+        <button style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:6,padding:"5px 11px",fontFamily:F.mono,fontSize:8.5,color:C.textSub,letterSpacing:0.5,transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=C.borderB;e.currentTarget.style.color=C.text;}} onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.color=C.textSub;}}>Docs</button>
+        <div style={{display:"flex",alignItems:"center",gap:5,background:`${C.green}0a`,border:`1px solid ${C.green}22`,borderRadius:20,padding:"4px 10px"}}>
+          <span style={{width:5,height:5,borderRadius:"50%",background:C.green,boxShadow:`0 0 5px ${C.green}`,animation:"blip 2s ease-in-out infinite"}}/>
+          <span style={{fontFamily:F.mono,fontSize:7.5,color:C.green,letterSpacing:2,fontWeight:700}}>LIVE</span>
+        </div>
+        <button onClick={go} style={{padding:"7px 16px",background:C.gold,border:"none",borderRadius:6,cursor:"pointer",fontFamily:F.display,fontWeight:700,fontSize:11,color:"#0e0900",letterSpacing:0.3,boxShadow:`0 1px 12px ${C.gold}40`,transition:"all .15s",whiteSpace:"nowrap"}} onMouseEnter={e=>{e.currentTarget.style.background=C.goldB;e.currentTarget.style.boxShadow=`0 2px 20px ${C.gold}55`;}} onMouseLeave={e=>{e.currentTarget.style.background=C.gold;e.currentTarget.style.boxShadow=`0 1px 12px ${C.gold}40`;}}>+ Analyze</button>
+        <div style={{width:28,height:28,borderRadius:"50%",background:`linear-gradient(135deg,${C.bgCardB},${C.bgCardC})`,border:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,transition:"border-color .15s"}} onMouseEnter={e=>e.currentTarget.style.borderColor=C.borderB} onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}>
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="5" r="2.5" stroke={C.textSub} strokeWidth="1.3"/><path d="M2 12c0-2.8 2.2-5 5-5s5 2.2 5 5" stroke={C.textSub} strokeWidth="1.3" strokeLinecap="round"/></svg>
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+// ─── HOME PAGE ────────────────────────────────────────────────────────────────
+function HomePage({onAnalyze}){
+  const [q,setQ]=useState("");const [focused,setFocused]=useState(false);
+  const [sel,setSel]=useState(new Set(ECOSYSTEMS.map(e=>e.id)));
+  const toggle=id=>setSel(p=>{const n=new Set(p);n.has(id)?n.delete(id):n.add(id);return n;});
+  const go=()=>onAnalyze(q.trim()||"0xA1b2c3d4e5f6789abc");
+  const ticker=[{l:"OPEN INTEREST",v:"$4.8B",up:true},{l:"24H VOLUME",v:"$284M",up:true},{l:"LIVE TRADERS",v:"89.4K",up:true},{l:"MARKETS",v:"142K",up:false},{l:"TRACKED WALLETS",v:"12.4K",up:true},{l:"24H ALERTS",v:"3,892",up:true}];
+  return(
+    <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column"}}>
+      <div style={{height:26,borderBottom:`1px solid ${C.border}`,background:C.bgDeep,overflow:"hidden",display:"flex",alignItems:"center",flexShrink:0,position:"relative"}}>
+        <div style={{display:"flex",animation:"ticker 30s linear infinite",whiteSpace:"nowrap"}}>
+          {[...ticker,...ticker,...ticker].map((s,i)=>(
+            <div key={i} style={{display:"inline-flex",alignItems:"center",gap:8,padding:"0 20px",borderRight:`1px solid ${C.border}`}}>
+              <span style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,letterSpacing:1.5}}>{s.l}</span>
+              <span style={{fontFamily:F.mono,fontSize:9,fontWeight:700,color:C.text}}>{s.v}</span>
+              <span style={{fontFamily:F.mono,fontSize:7.5,color:s.up?C.green:C.red}}>{s.up?"▲":"▼"}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{position:"absolute",left:0,top:0,bottom:0,width:32,background:`linear-gradient(90deg,${C.bgDeep},transparent)`,pointerEvents:"none"}}/>
+        <div style={{position:"absolute",right:0,top:0,bottom:0,width:32,background:`linear-gradient(-90deg,${C.bgDeep},transparent)`,pointerEvents:"none"}}/>
+      </div>
+      <div style={{flex:1,padding:"24px 28px 32px",display:"flex",flexDirection:"column",gap:18}}>
+        {/* Hero */}
+        <div style={{position:"relative",borderRadius:12,background:`linear-gradient(135deg,${C.bgCardB} 0%,${C.bgCard} 100%)`,border:`1px solid ${C.border}`,overflow:"hidden",padding:"30px 36px"}}>
+          <div style={{position:"absolute",inset:0,backgroundImage:`radial-gradient(circle at 1px 1px,${C.border} 1px,transparent 0)`,backgroundSize:"28px 28px",opacity:0.6,pointerEvents:"none"}}/>
+          <div style={{position:"absolute",top:-60,right:-40,width:380,height:260,background:`radial-gradient(ellipse,${C.gold}09 0%,transparent 65%)`,pointerEvents:"none"}}/>
+          <div style={{position:"absolute",bottom:0,left:0,right:0,height:1,background:`linear-gradient(90deg,transparent,${C.gold}28,transparent)`}}/>
+          <div style={{position:"absolute",top:0,left:0,width:3,height:"100%",background:`linear-gradient(180deg,${C.gold},${C.gold}12)`}}/>
+          <div style={{display:"flex",alignItems:"flex-start",gap:48,position:"relative"}}>
+            <div style={{flex:"0 0 auto",maxWidth:420}}>
+              <div style={{display:"inline-flex",alignItems:"center",gap:7,background:`${C.gold}0e`,border:`1px solid ${C.gold}22`,borderRadius:20,padding:"4px 12px",marginBottom:16}}>
+                <span style={{width:5,height:5,borderRadius:"50%",background:C.gold,boxShadow:`0 0 7px ${C.gold}`,animation:"blip 1.8s ease-in-out infinite"}}/>
+                <span style={{fontFamily:F.mono,fontSize:7.5,color:C.goldB,letterSpacing:2,fontWeight:700}}>LIVE INSIDER INTELLIGENCE</span>
+              </div>
+              <h1 style={{fontFamily:F.display,fontWeight:900,margin:0,lineHeight:1.0,letterSpacing:-1.5}}>
+                <span style={{fontSize:40,color:C.text,display:"block"}}>Track Insider</span>
+                <span style={{fontSize:40,display:"block",background:`linear-gradient(100deg,${C.gold} 0%,${C.goldC} 50%,${C.goldB} 100%)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Wallets.</span>
+              </h1>
+              <p style={{fontFamily:F.body,fontSize:13,color:C.textSub,margin:"14px 0 22px",lineHeight:1.75,fontWeight:300,maxWidth:380}}>Follow token flow between linked wallets. Spot coordinated positions before the market moves — across 6 prediction market ecosystems.</p>
+              <div style={{display:"flex",gap:6}}>
+                <div style={{flex:1,display:"flex",alignItems:"center",background:focused?C.bgCardC:C.bgCardB,border:`1px solid ${focused?C.borderHi:C.borderB}`,borderRadius:8,overflow:"hidden",boxShadow:focused?`0 0 0 3px ${C.goldGlow},0 4px 20px rgba(0,0,0,0.35)`:`0 2px 12px rgba(0,0,0,0.25)`,transition:"all .2s"}}>
+                  <div style={{padding:"0 12px",color:focused?C.goldB:C.textDim,flexShrink:0}}><svg width="13" height="13" viewBox="0 0 14 14" fill="none"><circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.5"/><path d="M9.5 9.5L12.5 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg></div>
+                  <input value={q} onChange={e=>setQ(e.target.value)} onKeyDown={e=>e.key==="Enter"&&go()} onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)} placeholder="Wallet address, ENS name, or tx hash…" style={{flex:1,background:"none",border:"none",outline:"none",fontFamily:F.mono,fontSize:10,color:C.text,padding:"13px 0",letterSpacing:0.2}}/>
+                </div>
+                <button onClick={go} style={{padding:"0 22px",background:C.gold,border:"none",borderRadius:8,cursor:"pointer",fontFamily:F.display,fontWeight:800,fontSize:11,color:"#0e0900",letterSpacing:0.5,flexShrink:0,boxShadow:`0 2px 14px ${C.gold}45`,transition:"all .2s"}} onMouseEnter={e=>{e.currentTarget.style.background=C.goldB;e.currentTarget.style.boxShadow=`0 4px 22px ${C.gold}60`;}} onMouseLeave={e=>{e.currentTarget.style.background=C.gold;e.currentTarget.style.boxShadow=`0 2px 14px ${C.gold}45`;}}>ANALYZE →</button>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginTop:10}}>
+                <span style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,letterSpacing:1}}>TRY:</span>
+                {[{l:"@winstony",a:"0xA1b2c3d4e5f6789abc"},{l:"vitalik.eth",a:"vitalik.eth"}].map(w=>(
+                  <button key={w.a} onClick={()=>onAnalyze(w.a)} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:4,padding:"3px 9px",fontFamily:F.mono,fontSize:8,color:C.textDim,cursor:"pointer",letterSpacing:0.3,transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=C.gold+"50";e.currentTarget.style.color=C.goldB;e.currentTarget.style.background=C.goldDim;}} onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.color=C.textDim;e.currentTarget.style.background="transparent";}}>↗ {w.l}</button>
+                ))}
+              </div>
+            </div>
+            <div style={{flex:1,minWidth:0,display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              {[{l:"Open Interest",v:"$4.8B",sub:"+2.4% today",up:true,hi:true},{l:"24h Volume",v:"$284M",sub:"+8.1% today",up:true,hi:false},{l:"Live Traders",v:"89.4K",sub:"↑ 4.2K new",up:true,hi:false},{l:"Live Markets",v:"142K",sub:"142 resolving",up:false,hi:false}].map((s,i)=>(
+                <div key={i} style={{background:i===0?`${C.gold}09`:C.bgCardC,border:`1px solid ${i===0?C.borderB:C.border}`,borderRadius:9,padding:"14px 15px",boxShadow:i===0?`inset 0 1px 0 ${C.gold}12`:undefined}}>
+                  <div style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,letterSpacing:2,textTransform:"uppercase",marginBottom:8}}>{s.l}</div>
+                  <div style={{fontFamily:F.display,fontWeight:900,fontSize:22,color:i===0?C.goldB:C.text,lineHeight:1,marginBottom:5}}>{s.v}</div>
+                  <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:8,color:s.up?C.green:C.red}}>{s.up?"▲":"▼"}</span><span style={{fontFamily:F.mono,fontSize:8,color:s.up?C.green:C.red}}>{s.sub}</span></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        {/* Two columns */}
+        <div style={{display:"grid",gridTemplateColumns:"1.15fr 0.85fr",gap:16,flex:1,minHeight:0}}>
+          {/* Trending */}
+          <div style={{background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden",display:"flex",flexDirection:"column"}}>
+            <div style={{padding:"13px 18px",borderBottom:`1px solid ${C.border}`,background:C.bgCardB,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div style={{display:"flex",alignItems:"center",gap:9}}>
+                <span style={{fontFamily:F.display,fontWeight:800,fontSize:12.5,color:C.text}}>Trending Insiders</span>
+                <div style={{display:"flex",alignItems:"center",gap:4,background:`${C.gold}0e`,border:`1px solid ${C.gold}25`,borderRadius:10,padding:"2px 8px"}}>
+                  <span style={{width:4,height:4,borderRadius:"50%",background:C.gold,animation:"blip 1.5s ease-in-out infinite"}}/>
+                  <span style={{fontFamily:F.mono,fontSize:7.5,color:C.goldB,letterSpacing:1}}>LIVE</span>
+                </div>
+              </div>
+              <span style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,letterSpacing:0.5}}>WIN RATE / PNL</span>
+            </div>
+            <div style={{flex:1,position:"relative"}}>
+              <div style={{position:"absolute",left:50,top:0,bottom:0,width:1,background:`linear-gradient(180deg,${C.gold}35 0%,${C.gold}05 100%)`,pointerEvents:"none"}}/>
+              {TRENDING.map((t,i)=>{
+                const ec=ECO_COLOR[t.eco]||C.gold;
+                const FL={HOT:{c:C.red,l:"HOT"},WHALE:{c:C.green,l:"WHALE"},NEW:{c:C.goldB,l:"NEW"}};
+                const flg=FL[t.flag]||FL.NEW;
+                return(<div key={i} onClick={()=>onAnalyze(t.addr)} style={{display:"flex",alignItems:"center",padding:"10px 16px 10px 0",borderBottom:i<TRENDING.length-1?`1px solid ${C.border}10`:"none",cursor:"pointer",transition:"background .12s"}} onMouseEnter={e=>e.currentTarget.style.background=`${ec}05`} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                  <div style={{width:66,flexShrink:0,display:"flex",justifyContent:"center",alignItems:"center",position:"relative"}}>
+                    <div style={{width:i===0?12:9,height:i===0?12:9,borderRadius:"50%",background:i===0?C.gold:C.bgCardD,border:`2px solid ${i===0?C.gold:C.textDim}`,boxShadow:i===0?`0 0 12px ${C.gold}90`:"none",transition:"all .2s",zIndex:1}}/>
+                    {i===0&&<div style={{position:"absolute",width:20,height:20,borderRadius:"50%",border:`1px solid ${C.gold}30`,animation:"ping 2.2s ease-out infinite"}}/>}
+                  </div>
+                  <div style={{flex:1,background:C.bgCardB,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 13px",display:"flex",alignItems:"center",gap:11,transition:"border-color .15s,transform .15s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=`${ec}35`;e.currentTarget.style.transform="translateX(2px)";}} onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.transform="translateX(0)";}}>
+                    <div style={{width:34,height:34,borderRadius:8,flexShrink:0,background:`linear-gradient(135deg,${ec}28,${ec}0e)`,border:`1px solid ${ec}35`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:F.display,fontWeight:800,fontSize:13,color:ec}}>{t.handle[1].toUpperCase()}</div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}><span style={{fontFamily:F.body,fontWeight:600,fontSize:12.5,color:C.text}}>{t.handle}</span><Tag label={flg.l} color={flg.c}/></div>
+                      <div style={{display:"flex",alignItems:"center",gap:7}}>
+                        <span style={{display:"inline-flex",alignItems:"center",gap:3,fontFamily:F.mono,fontSize:8,color:ec}}><span style={{width:4,height:4,borderRadius:"50%",background:ec}}/>{ECOSYSTEMS.find(e=>e.id===t.eco)?.label}</span>
+                        <span style={{fontFamily:F.mono,fontSize:8,color:C.textDim}}>·</span>
+                        <span style={{fontFamily:F.mono,fontSize:8,color:C.textDim}}>{t.winRate}% WR</span>
+                      </div>
+                    </div>
+                    <div style={{textAlign:"right",flexShrink:0}}>
+                      <div style={{fontFamily:F.display,fontWeight:800,fontSize:13,color:C.green,marginBottom:2}}>{t.pnl}</div>
+                      <div style={{fontFamily:F.mono,fontSize:8.5,color:`${C.green}70`}}>{t.pct}</div>
+                    </div>
+                    <div style={{width:24,height:24,borderRadius:5,flexShrink:0,background:i===0?C.gold:C.bgCardC,border:`1px solid ${i===0?C.gold:C.border}`,display:"flex",alignItems:"center",justifyContent:"center",color:i===0?"#0e0900":C.textDim,fontSize:10,fontWeight:700}}>↗</div>
+                  </div>
+                </div>);
+              })}
+            </div>
+          </div>
+          {/* Right column */}
+          <div style={{display:"flex",flexDirection:"column",gap:14}}>
+            <div style={{background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden"}}>
+              <div style={{padding:"13px 18px",borderBottom:`1px solid ${C.border}`,background:C.bgCardB}}><span style={{fontFamily:F.display,fontWeight:800,fontSize:12.5,color:C.text}}>Quick Start</span></div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr"}}>
+                {[{icon:"↗",label:"Leaderboard",sub:"Top P&L traders",c:C.gold},{icon:"◉",label:"Wallet Scan",sub:"Analyze any wallet",c:C.green},{icon:"⬡",label:"LP Rewards",sub:"Earn TRC rewards",c:C.blue},{icon:"⌥",label:"Token Flow",sub:"Trace wallet links",c:C.purple}].map((item,i)=>(
+                  <div key={i} style={{padding:"14px 16px",cursor:"pointer",borderRight:i%2===0?`1px solid ${C.border}`:"none",borderBottom:i<2?`1px solid ${C.border}`:"none",transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background=`${item.c}09`} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    <div style={{width:28,height:28,borderRadius:7,background:`${item.c}12`,border:`1px solid ${item.c}25`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,color:item.c,marginBottom:9,fontWeight:700}}>{item.icon}</div>
+                    <div style={{fontFamily:F.body,fontWeight:600,fontSize:12.5,color:C.text,marginBottom:2}}>{item.label}</div>
+                    <div style={{fontFamily:F.body,fontSize:11,color:C.textDim,fontWeight:300}}>{item.sub}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden",flex:1}}>
+              <div style={{padding:"13px 18px",borderBottom:`1px solid ${C.border}`,background:C.bgCardB,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <span style={{fontFamily:F.display,fontWeight:800,fontSize:12.5,color:C.text}}>Ecosystems</span>
+                <span style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim}}>{sel.size} / {ECOSYSTEMS.length} active</span>
+              </div>
+              <div style={{padding:"8px 10px",display:"flex",flexDirection:"column",gap:3}}>
+                {ECOSYSTEMS.map(eco=>{
+                  const on=sel.has(eco.id);
+                  return(<div key={eco.id} onClick={()=>toggle(eco.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:7,cursor:"pointer",background:on?`${eco.color}08`:"transparent",border:`1px solid ${on?eco.color+"22":C.borderC}`,transition:"all .14s"}}>
+                    <div style={{width:7,height:7,borderRadius:"50%",flexShrink:0,background:on?eco.color:C.bgCardD,border:`1.5px solid ${on?eco.color:C.textMute}`,boxShadow:on?`0 0 6px ${eco.color}80`:"none",transition:"all .14s"}}/>
+                    <span style={{fontFamily:F.body,fontSize:12,color:on?C.text:C.textDim,fontWeight:on?500:400,flex:1}}>{eco.label}</span>
+                    <span style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim}}>{eco.chain}</span>
+                    <span style={{fontFamily:F.mono,fontSize:9,fontWeight:700,color:on?eco.color:C.textMute}}>{eco.tvl}</span>
+                  </div>);
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── LEADERBOARD PAGE ─────────────────────────────────────────────────────────
+const COLS=[{key:"rank",label:"#",w:"52px",align:"center"},{key:"handle",label:"Trader",w:"1.8fr",align:"left"},{key:"totalPos",label:"Trades",w:"72px",align:"right"},{key:"totalBuy",label:"Buy Vol",w:"96px",align:"right"},{key:"winRate",label:"Win Rate",w:"110px",align:"right"},{key:"realizedPnl",label:"P&L",w:"120px",align:"right"},{key:"avgPct",label:"Avg %",w:"72px",align:"right"},{key:"lastActive",label:"Last Seen",w:"88px",align:"right"}];
+
+function LeaderboardPage({onAnalyze}){
+  const [platform,setPlatform]=useState("polymarket");const [time,setTime]=useState("30d");
+  const [sortKey,setSortKey]=useState("realizedPnl");const [sortDir,setSortDir]=useState("desc");
+  const [view,setView]=useState("TRADE");const [hov,setHov]=useState(null);
+  const raw=genLB(platform,time);const plat=LB_PLATFORMS.find(p=>p.id===platform);
+  const rows=[...raw].sort((a,b)=>{const va=a[sortKey],vb=b[sortKey];return sortDir==="asc"?(typeof va==="string"?va.localeCompare(vb):va-vb):(typeof vb==="string"?vb.localeCompare(va):vb-va);});
+  const totalVol=rows.reduce((s,r)=>s+r.totalBuy+r.totalSell,0);
+  const avgWR=rows.length?Math.round(rows.reduce((s,r)=>s+r.winRate,0)/rows.length):0;
+  const topPnl=rows[0]?.realizedPnl||0;
+  const grid=COLS.map(c=>c.w).join(" ");
+  const medals=[C.gold,"#9ca3af","#a07840"];
+  function sort(k){if(sortKey===k)setSortDir(d=>d==="desc"?"asc":"desc");else{setSortKey(k);setSortDir("desc");}}
+  return(
+    <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      <div style={{padding:"18px 28px 0",flexShrink:0,borderBottom:`1px solid ${C.border}`,background:`linear-gradient(180deg,${C.bgCardB} 0%,${C.bg} 100%)`}}>
+        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:24,marginBottom:16}}>
+          <div>
+            <div style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,letterSpacing:2.5,textTransform:"uppercase",marginBottom:5}}>Prediction Markets</div>
+            <h2 style={{fontFamily:F.display,fontWeight:900,fontSize:24,color:C.text,margin:0,letterSpacing:-0.8,lineHeight:1.1}}>Trader <span style={{background:`linear-gradient(95deg,${C.gold},${C.goldC})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Rankings</span></h2>
+          </div>
+          <div style={{display:"flex",gap:10,flexShrink:0}}>
+            {[{l:"Total Volume",v:fu(totalVol),c:C.goldB},{l:"Avg Win Rate",v:avgWR+"%",c:C.green},{l:"Top Realized",v:fu(topPnl),c:C.green}].map((s,i)=>(
+              <div key={i} style={{background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 16px",textAlign:"right"}}>
+                <div style={{fontFamily:F.mono,fontSize:7,color:C.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:5}}>{s.l}</div>
+                <div style={{fontFamily:F.display,fontWeight:800,fontSize:17,color:s.c,lineHeight:1,textShadow:`0 0 22px ${s.c}28`}}>{s.v}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap"}}>
+          <div style={{display:"flex",gap:3}}>{LB_PLATFORMS.slice(0,5).map(p=>(<button key={p.id} onClick={()=>setPlatform(p.id)} style={{padding:"4px 11px",borderRadius:5,cursor:"pointer",border:`1px solid ${platform===p.id?p.color+"55":C.border}`,background:platform===p.id?`${p.color}12`:"transparent",fontFamily:F.mono,fontSize:8.5,letterSpacing:0.5,color:platform===p.id?p.color:C.textDim,fontWeight:platform===p.id?700:400,transition:"all .15s"}}>{p.label}</button>))}</div>
+          <div style={{width:1,height:16,background:C.border}}/>
+          <div style={{display:"flex",gap:2}}>{LB_TIME.map(t=>(<button key={t} onClick={()=>setTime(t)} style={{padding:"3px 8px",borderRadius:4,cursor:"pointer",border:`1px solid ${time===t?C.gold+"45":C.borderC}`,background:time===t?C.goldDim:"transparent",fontFamily:F.mono,fontSize:8,color:time===t?C.goldB:C.textDim,transition:"all .15s"}}>{t.toUpperCase()}</button>))}</div>
+          <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8}}><Tag label="P&L ≥ +50%" color={C.green}/>{plat&&<Tag label={`${plat.label} · ${plat.chain}`} color={plat.color}/>}<span style={{fontFamily:F.mono,fontSize:8,color:C.textDim}}>{rows.length} traders</span></div>
+        </div>
+        <div style={{display:"flex",alignItems:"stretch",gap:0,marginBottom:"-1px"}}>
+          {[{key:"TRADE",label:"TRADE",c:C.gold,desc:"P&L Leaderboard"},{key:"REWARDS",label:"REWARDS",c:C.green,desc:"LP Providers"}].map(v=>{
+            const active=view===v.key;
+            return(<button key={v.key} onClick={()=>setView(v.key)} style={{background:active?C.bg:"transparent",border:"none",borderTop:`1px solid ${active?C.border:"transparent"}`,borderLeft:`1px solid ${active?C.border:"transparent"}`,borderRight:`1px solid ${active?C.border:"transparent"}`,borderBottom:`1px solid ${active?"transparent":C.border}`,borderRadius:active?"8px 8px 0 0":"0",padding:"0 18px",height:38,cursor:"pointer",display:"flex",alignItems:"center",gap:8,marginBottom:active?"-1px":0,transition:"all .15s"}}>
+              {active&&<span style={{width:4,height:4,borderRadius:"50%",background:v.c,boxShadow:`0 0 6px ${v.c}`}}/>}
+              <span style={{fontFamily:F.mono,fontSize:9.5,letterSpacing:1.2,color:active?v.c:C.textDim,fontWeight:active?700:400}}>{v.label}</span>
+              <span style={{fontFamily:F.body,fontSize:11,color:active?`${v.c}70`:C.textMute}}>{v.desc}</span>
+            </button>);
+          })}
+        </div>
+      </div>
+      <div style={{flex:1,overflow:"hidden",padding:"14px 28px 20px"}}>
+        {view==="TRADE"&&(
+          <div style={{height:"100%",display:"flex",flexDirection:"column",background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:"0 10px 10px 10px",overflow:"hidden"}}>
+            <div style={{display:"grid",gridTemplateColumns:grid,padding:"0 18px",gap:8,background:C.bgCardB,borderBottom:`1px solid ${C.border}`,height:34,alignItems:"center",flexShrink:0}}>
+              {COLS.map(col=>{const active=sortKey===col.key;return(<div key={col.key} onClick={()=>sort(col.key)} style={{display:"flex",alignItems:"center",gap:3,cursor:"pointer",justifyContent:col.align==="right"?"flex-end":col.align==="center"?"center":"flex-start",color:active?C.goldB:C.textDim,userSelect:"none",transition:"color .12s"}} onMouseEnter={e=>{if(!active)e.currentTarget.style.color=C.textSub;}} onMouseLeave={e=>{if(!active)e.currentTarget.style.color=C.textDim;}}><span style={{fontFamily:F.mono,fontSize:7.5,letterSpacing:1,textTransform:"uppercase"}}>{col.label}</span><span style={{fontSize:8}}>{active?(sortDir==="desc"?"↓":"↑"):"↕"}</span></div>);})}
+            </div>
+            <div style={{overflowY:"auto",flex:1}}>
+              {rows.map((row,i)=>{
+                const top3=row.rank<=3,pos=row.realizedPnl>=0;
+                const rp=LB_PLATFORMS.find(p=>p.id===row.platform)||plat;
+                const lag=row.lastActive===1?"Today":row.lastActive<=7?`${row.lastActive}d ago`:row.lastActive<=30?`${Math.round(row.lastActive/7)}w ago`:`${Math.round(row.lastActive/30)}mo`;
+                const lagC=row.lastActive<=1?C.green:row.lastActive<=3?C.goldB:C.textDim;
+                const isH=hov===i;
+                return(<div key={i} onClick={()=>onAnalyze&&onAnalyze(row.address)} onMouseEnter={()=>setHov(i)} onMouseLeave={()=>setHov(null)} style={{display:"grid",gridTemplateColumns:grid,padding:"0 18px",gap:8,height:52,alignItems:"center",borderBottom:`1px solid ${C.border}08`,background:isH?`${rp?.color||C.gold}07`:top3?`${[C.gold+"04","rgba(150,150,150,0.02)","rgba(120,90,40,0.025)"][row.rank-1]}`:"transparent",cursor:"pointer",borderLeft:top3?`2px solid ${medals[row.rank-1]}`:"2px solid transparent",transition:"background .1s"}}>
+                  <div style={{display:"flex",justifyContent:"center"}}>{top3?<div style={{width:22,height:22,borderRadius:"50%",background:medals[row.rank-1],fontSize:11,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 0 10px ${medals[row.rank-1]}55`}}>{["🥇","🥈","🥉"][row.rank-1]}</div>:<span style={{fontFamily:F.mono,fontSize:10,color:row.rank<=10?C.textSub:C.textDim,fontWeight:600}}>{row.rank}</span>}</div>
+                  <div style={{display:"flex",alignItems:"center",gap:9,minWidth:0}}>
+                    <div style={{width:28,height:28,borderRadius:7,flexShrink:0,background:`${rp?.color||C.gold}14`,border:`1px solid ${rp?.color||C.gold}28`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:F.display,fontWeight:800,fontSize:11,color:rp?.color||C.gold}}>{row.handle[1]?.toUpperCase()}</div>
+                    <div style={{minWidth:0}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}><span style={{fontFamily:F.body,fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{row.handle}</span>{rp&&<Tag label={rp.label.slice(0,4).toUpperCase()} color={rp.color}/>}</div>
+                      <span style={{fontFamily:F.mono,fontSize:7.5,color:C.textMute,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{row.address}</span>
+                    </div>
+                  </div>
+                  <div style={{textAlign:"right"}}><span style={{fontFamily:F.mono,fontSize:11,color:C.textSub,fontWeight:600}}>{row.totalPos}</span></div>
+                  <div style={{textAlign:"right"}}><span style={{fontFamily:F.mono,fontSize:11,color:C.textSub}}>{fu(row.totalBuy)}</span></div>
+                  <div style={{display:"flex",justifyContent:"flex-end"}}><WinBar val={row.winRate}/></div>
+                  <div style={{textAlign:"right"}}><Pnl val={row.realizedPnl} pct={fp(row.pnlPct)}/></div>
+                  <div style={{textAlign:"right"}}><span style={{fontFamily:F.mono,fontSize:10,color:row.avgPct>=0?C.green:C.red,fontWeight:600}}>{fp(row.avgPct)}</span></div>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:7}}><span style={{fontFamily:F.mono,fontSize:8.5,color:lagC,fontWeight:row.lastActive<=1?700:400}}>{lag}</span><div style={{width:20,height:20,borderRadius:4,flexShrink:0,background:isH?C.goldDim:C.bgCardC,border:`1px solid ${isH?C.gold+"40":C.border}`,display:"flex",alignItems:"center",justifyContent:"center",color:isH?C.goldB:C.textDim,fontSize:9,transition:"all .15s"}}>↗</div></div>
+                </div>);
+              })}
+            </div>
+            <div style={{flexShrink:0,borderTop:`1px solid ${C.border}`,padding:"7px 18px",display:"flex",justifyContent:"space-between",background:C.bgCardB}}><span style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim}}>{rows.length} traders · P&L ≥ +50% · {time} window</span><span style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim}}>Click column to sort · Click row to open profile</span></div>
+          </div>
+        )}
+        {view==="REWARDS"&&(
+          <div style={{height:"100%",display:"flex",flexDirection:"column",background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:"0 10px 10px 10px",overflow:"hidden"}}>
+            <div style={{padding:"11px 18px",borderBottom:`1px solid ${C.border}`,background:C.bgCardB,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between"}}><span style={{fontFamily:F.mono,fontSize:8,color:C.textDim,letterSpacing:2,textTransform:"uppercase"}}>Top LP Providers — All Platforms</span><Tag label="TRC Rewards" color={C.green}/></div>
+            <div style={{flex:1,overflowY:"auto"}}>
+              {REWARDS_LB.map((r,i)=>(
+                <div key={i} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 18px",borderBottom:i<REWARDS_LB.length-1?`1px solid ${C.border}10`:"none",cursor:"pointer",transition:"background .12s"}} onMouseEnter={e=>e.currentTarget.style.background=`${r.color}07`} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                  <div style={{width:36,flexShrink:0,display:"flex",justifyContent:"center"}}>{i<3?<div style={{width:26,height:26,borderRadius:"50%",background:medals[i],display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,boxShadow:`0 0 12px ${medals[i]}60`}}>{["🥇","🥈","🥉"][i]}</div>:<span style={{fontFamily:F.mono,fontSize:11,color:C.textDim,fontWeight:600,textAlign:"center",width:36,display:"block"}}>#{i+1}</span>}</div>
+                  <div style={{width:40,height:40,borderRadius:10,flexShrink:0,background:`${r.color}12`,border:`1px solid ${r.color}28`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:F.mono,fontWeight:700,fontSize:8.5,color:r.color,letterSpacing:0.5}}>LP</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}><span style={{fontFamily:F.mono,fontSize:11,fontWeight:700,color:r.color}}>{r.id}</span><Tag label={r.platform} color={r.color}/></div>
+                    <div style={{fontFamily:F.mono,fontSize:8.5,color:C.textDim}}>{r.markets} markets · {r.pts.toLocaleString()} pts · {r.lpVol} LP vol</div>
+                  </div>
+                  <div style={{textAlign:"right",flexShrink:0,minWidth:90}}><div style={{fontFamily:F.mono,fontSize:8,color:C.textDim,marginBottom:4}}>WIN RATE</div><WinBar val={r.winRate}/></div>
+                  <div style={{textAlign:"right",flexShrink:0,minWidth:110}}>
+                    <div style={{display:"flex",alignItems:"baseline",gap:4,justifyContent:"flex-end",marginBottom:3}}><span style={{fontFamily:F.display,fontWeight:800,fontSize:16,color:C.green,textShadow:`0 0 14px ${C.green}45`}}>{r.rewards.toLocaleString()}</span><span style={{fontFamily:F.mono,fontSize:8.5,color:C.goldB,fontWeight:700}}>TRC</span></div>
+                    <span style={{fontFamily:F.mono,fontSize:9,color:C.green,fontWeight:700}}>{r.pnl}</span>
+                  </div>
+                  <div style={{width:24,height:24,borderRadius:5,flexShrink:0,background:i===0?C.gold:C.bgCardC,border:`1px solid ${i===0?C.gold:C.border}`,display:"flex",alignItems:"center",justifyContent:"center",color:i===0?"#0e0900":C.textDim,fontSize:9,fontWeight:700}}>↗</div>
+                </div>
+              ))}
+            </div>
+            <div style={{flexShrink:0,borderTop:`1px solid ${C.border}`,padding:"7px 18px",background:C.bgCardB}}><span style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim}}>Ranked by TRC rewards earned · all-time</span></div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── TOKEN FLOW GRAPH ─────────────────────────────────────────────────────────
+function FlowGraph({graph}){
+  const containerRef=useRef(null);
+  const [lines,setLines]=useState([]);
+  const nodeRefs=useRef({});
+  const root=graph.root, mids=graph.children||[], leafEntries=[];
+  mids.forEach((mid,mi)=>(mid.children||[]).forEach(leaf=>leafEntries.push({leaf,mi})));
+  useEffect(()=>{
+    if(!containerRef.current)return;
+    const base=containerRef.current.getBoundingClientRect();
+    const mid=el=>{const r=el.getBoundingClientRect();return{x:r.left-base.left,y:r.top-base.top,w:r.width,h:r.height};};
+    const newLines=[];
+    const rootEl=nodeRefs.current["root"];
+    if(!rootEl)return;
+    const rr=mid(rootEl);
+    mids.forEach((_,mi)=>{
+      const mEl=nodeRefs.current[`m${mi}`];if(!mEl)return;
+      const mr=mid(mEl);
+      const x1=rr.x+rr.w,y1=rr.y+rr.h/2,x2=mr.x,y2=mr.y+mr.h/2;
+      const cx1=x1+(x2-x1)*0.55,cy1=y1,cx2=x1+(x2-x1)*0.45,cy2=y2;
+      newLines.push({d:`M${x1},${y1} C${cx1},${cy1} ${cx2},${cy2} ${x2},${y2}`,color:`${C.gold}90`,dashed:false});
+    });
+    leafEntries.forEach(({leaf,mi},li)=>{
+      const mEl=nodeRefs.current[`m${mi}`],lEl=nodeRefs.current[`l${li}`];if(!mEl||!lEl)return;
+      const mr=mid(mEl),lr=mid(lEl);
+      const x1=mr.x+mr.w,y1=mr.y+mr.h/2,x2=lr.x,y2=lr.y+lr.h/2;
+      const cx1=x1+(x2-x1)*0.55,cy1=y1,cx2=x1+(x2-x1)*0.45,cy2=y2;
+      const col=leaf.side==="BUY"?C.green:C.red;
+      newLines.push({d:`M${x1},${y1} C${cx1},${cy1} ${cx2},${cy2} ${x2},${y2}`,color:`${col}80`,dashed:true});
+    });
+    setLines(newLines);
+  });
+
+  function NodeCard({id,data,isRoot}){
+    const sc=data.side==="BUY"?C.green:data.side==="SELL"?C.red:C.gold;
+    const borderCol=isRoot?C.gold:data.side==="BUY"?`${C.green}55`:data.side==="SELL"?`${C.red}55`:C.border;
+    const pnlPos=data.pnl?data.pnl.startsWith("+"):true;
+    return(
+      <div ref={el=>{nodeRefs.current[id]=el;}} style={{background:isRoot?`${C.gold}0e`:C.bgCardB,border:`1px solid ${borderCol}`,borderRadius:8,padding:"10px 13px",width:164,flexShrink:0,display:"flex",flexDirection:"column",boxShadow:isRoot?`0 0 18px ${C.gold}18`:"none"}}>
+        <div style={{fontFamily:F.mono,fontSize:9.5,fontWeight:700,color:isRoot?C.gold:C.text,marginBottom:6,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{isRoot?(data.label||data.addr):data.addr}</div>
+        {isRoot?<div style={{fontFamily:F.mono,fontSize:8,color:C.textDim,letterSpacing:1}}>ROOT WALLET</div>:(
+          <>
+            <div style={{height:1,background:C.border,marginBottom:7}}/>
+            <div style={{display:"flex",gap:10}}>
+              <div><div style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,letterSpacing:1.2,marginBottom:2}}>TXS</div><div style={{fontFamily:F.mono,fontSize:11,color:C.textSub,fontWeight:600}}>{data.txs}</div></div>
+              <div><div style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,letterSpacing:1.2,marginBottom:2}}>VOL</div><div style={{fontFamily:F.mono,fontSize:11,color:C.textSub,fontWeight:600}}>{data.vol}</div></div>
+              <div style={{marginLeft:"auto"}}><div style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,letterSpacing:1.2,marginBottom:2}}>SIDE</div><div style={{fontFamily:F.mono,fontSize:11,fontWeight:700,color:sc}}>{data.side}</div></div>
+            </div>
+            {data.pnl&&<div style={{marginTop:6,display:"flex",alignItems:"center",gap:5}}>
+              <span style={{fontFamily:F.mono,fontSize:9,fontWeight:700,color:pnlPos?C.green:C.red,background:pnlPos?C.greenDim:C.redDim,border:`1px solid ${pnlPos?C.green+"40":C.red+"40"}`,borderRadius:3,padding:"1px 6px",whiteSpace:"nowrap"}}>{data.pnl}</span>
+              {data.pct&&<span style={{fontFamily:F.mono,fontSize:8.5,color:`${pnlPos?C.green:C.red}bb`}}>({data.pct})</span>}
+            </div>}
+          </>
+        )}
+      </div>
+    );
+  }
+  function Col({children,label}){
+    return(<div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:10,flex:"none"}}>
+      {label&&<div style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,letterSpacing:1.8,textTransform:"uppercase",marginBottom:2}}>{label}</div>}
+      {children}
+    </div>);
+  }
+  return(
+    <div ref={containerRef} style={{position:"relative",display:"flex",alignItems:"center",gap:48,padding:"16px 28px",width:"100%",height:"100%",boxSizing:"border-box",overflowX:"auto"}}>
+      <svg style={{position:"absolute",inset:0,width:"100%",height:"100%",overflow:"visible",pointerEvents:"none"}}>
+        {lines.map((ln,i)=>(<path key={i} d={ln.d} fill="none" stroke={ln.color} strokeWidth={1.5} strokeDasharray={ln.dashed?"5 4":"none"} opacity={0.75}/>))}
+        {lines.map((ln,i)=>{const pts=ln.d.match(/M([\d.]+),([\d.]+)/);if(!pts)return null;return<circle key={`d${i}`} cx={parseFloat(pts[1])} cy={parseFloat(pts[2])} r={3} fill={ln.color} opacity={0.7}/>;})}
+      </svg>
+      <Col label="ROOT"><NodeCard id="root" data={root} isRoot/></Col>
+      {mids.length>0&&<Col label="LINKED">{mids.map((mid,i)=><NodeCard key={i} id={`m${i}`} data={mid}/>)}</Col>}
+      {leafEntries.length>0&&<Col label="DOWNSTREAM">{leafEntries.map(({leaf},i)=><NodeCard key={i} id={`l${i}`} data={leaf}/>)}</Col>}
+    </div>
+  );
+}
+
+// ─── TOKEN FLOW TAB ───────────────────────────────────────────────────────────
+function TokenFlowTab({wallet}){
+  const [sel,setSel]=useState(null);
+  return(
+    <div style={{display:"flex",flex:1,minHeight:0,overflow:"hidden",borderRadius:10,border:`1px solid ${C.border}`,background:C.bgCard}}>
+      {/* Left: linked wallets */}
+      <div style={{width:300,flexShrink:0,display:"flex",flexDirection:"column",borderRight:`1px solid ${C.border}`}}>
+        <div style={{padding:"10px 16px",borderBottom:`1px solid ${C.border}`,background:C.bgCardB,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <span style={{fontFamily:F.mono,fontSize:8.5,color:C.gold,letterSpacing:2,fontWeight:700}}>LINKED WALLETS</span>
+          <span style={{fontFamily:F.mono,fontSize:8,background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:8,padding:"1px 7px",color:C.textSub}}>{wallet.linked.length}</span>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 44px 68px",padding:"5px 16px",borderBottom:`1px solid ${C.border}`,flexShrink:0}}>
+          {["WALLET","TXS","VOL"].map(h=><span key={h} style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,letterSpacing:1.2,textTransform:"uppercase"}}>{h}</span>)}
+        </div>
+        <div style={{flex:1,overflowY:"auto"}}>
+          {wallet.linked.map((row,i)=>{
+            const isS=sel===i, pp=row.pnl.startsWith("+");
+            return(<div key={i} onClick={()=>setSel(isS?null:i)} style={{padding:"9px 16px",borderBottom:`1px solid ${C.border}12`,cursor:"pointer",background:isS?`${C.gold}07`:"transparent",borderLeft:isS?`2px solid ${C.gold}`:"2px solid transparent",transition:"all .12s"}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 44px 68px",alignItems:"center",marginBottom:5}}>
+                <span style={{fontFamily:F.mono,fontSize:9.5,color:isS?C.text:C.textSub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{row.addr}</span>
+                <span style={{fontFamily:F.mono,fontSize:10,color:C.textSub}}>{row.txs}</span>
+                <span style={{fontFamily:F.mono,fontSize:10,color:C.textSub}}>${row.vol}</span>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:7}}>
+                <TypeChip type={row.side}/>
+                <span style={{fontFamily:F.mono,fontSize:9,fontWeight:700,color:pp?C.green:C.red}}>{row.pnl}</span>
+                <span style={{fontFamily:F.mono,fontSize:8,color:`${pp?C.green:C.red}80`}}>({row.pct}%)</span>
+              </div>
+            </div>);
+          })}
+        </div>
+        <div style={{flexShrink:0,padding:"10px 16px",borderTop:`1px solid ${C.border}`,background:C.bgCardB,display:"flex",gap:0}}>
+          {[{label:"LINKED",value:wallet.linked.length,color:null},{label:"WIN RATE",value:wallet.winRate+"%",color:C.green},{label:"RISK",value:wallet.riskScore,color:wallet.riskScore>75?C.red:C.gold}].map((s,i)=>(
+            <div key={i} style={{flex:1,borderRight:i<2?`1px solid ${C.border}`:"none",paddingRight:12,marginRight:12}}>
+              <div style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:3}}>{s.label}</div>
+              <div style={{fontFamily:F.display,fontWeight:800,fontSize:16,color:s.color||C.text,lineHeight:1,textShadow:s.color?`0 0 14px ${s.color}40`:"none"}}>{s.value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      {/* Right: flow graph */}
+      <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column"}}>
+        <div style={{flexShrink:0,padding:"10px 18px",borderBottom:`1px solid ${C.border}`,background:C.bgCardB,display:"flex",alignItems:"center",gap:10}}>
+          <span style={{fontFamily:F.mono,fontSize:8.5,color:C.gold,letterSpacing:2,fontWeight:700}}>TOKEN FLOW</span>
+          <div style={{flex:1,height:1,background:C.border}}/>
+          {[["ORIGIN",C.gold,false],["LINKED",C.green,false],["DOWNSTREAM",C.red,true]].map(([l,c,dashed])=>(
+            <div key={l} style={{display:"flex",alignItems:"center",gap:5}}>
+              <svg width="18" height="6"><line x1="0" y1="3" x2="18" y2="3" stroke={c} strokeWidth="1.5" strokeDasharray={dashed?"5 3":"none"} opacity="0.8"/></svg>
+              <span style={{fontFamily:F.mono,fontSize:8,color:C.textDim}}>{l}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{flex:1,minHeight:0,overflowX:"auto",overflowY:"hidden",display:"flex",alignItems:"center"}}>
+          <FlowGraph graph={wallet.graph}/>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── ACTIVITY TAB ─────────────────────────────────────────────────────────────
+function ActivityTab({wallet}){
+  const [filter,setFilter]=useState("ALL");
+  const rows=buildActivity(wallet.address);
+  const visible=filter==="ALL"?rows:rows.filter(r=>r.type===filter);
+  const counts={ALL:rows.length};
+  ["BUY","SELL","RECEIVE","SEND"].forEach(f=>{counts[f]=rows.filter(r=>r.type===f).length;});
+  const totalVol=visible.reduce((s,r)=>s+r.value,0);
+  const sellRows=visible.filter(r=>r.pnl);
+  const netPnl=sellRows.reduce((s,r)=>{const v=parseInt(r.pnl.replace(/[^0-9]/g,""));return s+(r.pnlPos?v:-v);},0);
+  const netPct=sellRows.length?Math.round(sellRows.reduce((s,r)=>s+(r.pnlPct||0),0)/sellRows.length):0;
+  const transfers=visible.filter(r=>r.type==="RECEIVE"||r.type==="SEND").length;
+  const AMAP={BUY:{c:C.green,bg:C.greenDim},SELL:{c:C.red,bg:C.redDim},RECEIVE:{c:C.blue,bg:C.blueDim},SEND:{c:C.gold,bg:C.goldDim}};
+  return(
+    <div style={{flex:1,display:"flex",flexDirection:"column",background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden",minHeight:0}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 18px",borderBottom:`1px solid ${C.border}`,flexShrink:0,background:C.bgCardB}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontFamily:F.mono,fontSize:9,color:C.textSub,letterSpacing:1.5}}>ACTIVITY</span>
+          <span style={{background:C.bgCardC,border:`1px solid ${C.border}`,borderRadius:10,padding:"1px 7px",fontFamily:F.mono,fontSize:8.5,color:C.textSub}}>{rows.length}</span>
+        </div>
+        <div style={{display:"flex",gap:4}}>
+          {["ALL","BUY","SELL","RECEIVE","SEND"].map(f=>{
+            const active=filter===f,m=f!=="ALL"?AMAP[f]:null;
+            return(<button key={f} onClick={()=>setFilter(f)} style={{background:active?(m?m.bg:"rgba(255,255,255,0.06)"):"transparent",border:`1px solid ${active?(m?m.c+"50":C.borderB):C.border}`,borderRadius:5,padding:"4px 10px",cursor:"pointer",fontFamily:F.mono,fontSize:8.5,letterSpacing:0.8,color:active?(m?m.c:C.text):C.textDim,transition:"all .12s"}}>
+              {f} <span style={{opacity:0.5}}>({counts[f]})</span>
+            </button>);
+          })}
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"70px 26px 1fr 120px 72px 64px 80px 80px 48px",padding:"5px 18px",gap:8,flexShrink:0,borderBottom:`1px solid ${C.border}`}}>
+        {["TYPE","#","OUTCOME TOKEN","COUNTERPARTY","QTY","PRICE","VALUE","PNL","AGO"].map(h=><span key={h} style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,letterSpacing:1.2,textTransform:"uppercase"}}>{h}</span>)}
+      </div>
+      <div style={{overflowY:"auto",flex:1}}>
+        {visible.map((row,i)=>{
+          const isT=row.type==="RECEIVE"||row.type==="SEND",am=AMAP[row.type],ec=ECO_COLOR[row.tok.market]||C.textDim;
+          return(<div key={i} style={{display:"grid",gridTemplateColumns:"70px 26px 1fr 120px 72px 64px 80px 80px 48px",padding:"8px 18px",gap:8,alignItems:"center",borderBottom:`1px solid ${C.border}10`,transition:"background .1s"}} onMouseEnter={e=>e.currentTarget.style.background=`${am.c}05`} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+            <TypeChip type={row.type}/>
+            <span style={{fontFamily:F.mono,fontSize:8.5,color:C.textDim}}>{String(i+1).padStart(2,"0")}</span>
+            <div style={{minWidth:0}}>
+              <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:2}}>
+                <span style={{fontFamily:F.mono,fontSize:8.5,fontWeight:700,color:row.tok.side==="YES"?C.green:C.red,background:row.tok.side==="YES"?C.greenDim:C.redDim,border:`1px solid ${row.tok.side==="YES"?C.green+"40":C.red+"40"}`,borderRadius:3,padding:"1px 5px"}}>{row.tok.side}</span>
+                <span style={{fontFamily:F.body,fontSize:11,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{row.tok.name}</span>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:5}}>
+                <span style={{width:4,height:4,borderRadius:"50%",background:ec,flexShrink:0}}/>
+                <span style={{fontFamily:F.mono,fontSize:8.5,color:C.textDim}}>{row.tok.market}</span>
+                <span style={{fontFamily:F.mono,fontSize:8.5,color:C.textMute}}>· {row.hash}</span>
+              </div>
+            </div>
+            <div style={{minWidth:0}}>
+              {isT?(<><div style={{fontFamily:F.mono,fontSize:8,color:C.textDim,marginBottom:1}}>{row.type==="RECEIVE"?"FROM":"TO"}</div><div style={{fontFamily:F.mono,fontSize:9.5,color:am.c,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{row.peer}</div></>):<span style={{fontFamily:F.mono,fontSize:11,color:C.textMute}}>—</span>}
+            </div>
+            <span style={{fontFamily:F.mono,fontSize:10.5,color:C.textSub}}>{row.qty.toLocaleString()}</span>
+            <span style={{fontFamily:F.mono,fontSize:10.5,color:C.textSub}}>${row.price}</span>
+            <span style={{fontFamily:F.mono,fontSize:10.5,color:C.text,fontWeight:600}}>${row.value.toLocaleString()}</span>
+            <div style={{fontFamily:F.mono,fontSize:10.5,fontWeight:700,color:row.pnl?(row.pnlPos?C.green:C.red):C.textDim,whiteSpace:"nowrap"}}>
+              {row.pnl?<span>{row.pnl} <span style={{fontSize:8,color:`${row.pnlPos?C.green:C.red}bb`,fontWeight:600}}>({row.pnlPct>0?"+":""}{row.pnlPct}%)</span></span>:(isT?<span style={{fontSize:8.5,opacity:0.5}}>TRANSFER</span>:"—")}
+            </div>
+            <span style={{fontFamily:F.mono,fontSize:8.5,color:C.textDim}}>{row.minsAgo<60?`${row.minsAgo}m`:`${Math.floor(row.minsAgo/60)}h`}</span>
+          </div>);
+        })}
+      </div>
+      <div style={{display:"flex",borderTop:`1px solid ${C.border}`,padding:"10px 18px",flexShrink:0,background:C.bgCardB}}>
+        {[{label:"TOTAL VOLUME",val:"$"+totalVol.toLocaleString()},{label:"TRANSFERS",val:transfers+" events"},{label:"NET PNL",isP:true,pnl:netPnl,pct:netPct},{label:"WIN RATE",val:wallet.winRate+"%"}].map((s,i)=>(
+          <div key={i} style={{flex:1,borderRight:i<3?`1px solid ${C.border}`:"none",paddingRight:16,marginRight:16}}>
+            <div style={{fontFamily:F.mono,fontSize:8,color:C.textDim,letterSpacing:1,marginBottom:4}}>{s.label}</div>
+            {s.isP?<Pnl val={s.pnl} pct={fp(s.pct)} size={13}/>:<div style={{fontFamily:F.mono,fontSize:13,fontWeight:700,color:C.text}}>{s.val}</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── REWARDS TAB ─────────────────────────────────────────────────────────────
+const RTMETA={"Liquidity reward":{color:C.green,icon:"🎁",short:"LIQ"},"Maker rebate":{color:C.blue,icon:"⚡",short:"REBATE"},"LP fee share":{color:C.purple,icon:"◎",short:"LP FEE"}};
+const SMETA={CLAIMED:{color:C.green,bg:"rgba(62,191,129,0.09)",border:"rgba(62,191,129,0.28)",icon:"✓"},PENDING:{color:C.goldB,bg:"rgba(218,169,63,0.09)",border:"rgba(218,169,63,0.28)",icon:"◔"},FAILED:{color:C.red,bg:"rgba(217,79,79,0.09)",border:"rgba(217,79,79,0.28)",icon:"✗"}};
+
+function RewardsTab({wallet}){
+  const [filter,setFilter]=useState("ALL");
+  const rewards=wallet.rewards||[];
+  const types=[...new Set(rewards.map(r=>r.type))];
+  const visible=filter==="ALL"?rewards:rewards.filter(r=>r.type===filter);
+  const earned=rewards.filter(r=>r.status==="CLAIMED").reduce((s,r)=>s+r.amount,0);
+  const pending=rewards.filter(r=>r.status==="PENDING").reduce((s,r)=>s+r.amount,0);
+  return(
+    <div style={{flex:1,display:"flex",flexDirection:"column",background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden",minHeight:0}}>
+      <div style={{flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 18px",borderBottom:`1px solid ${C.border}`,background:C.bgCardB,gap:12}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontFamily:F.mono,fontSize:9,color:C.textSub,letterSpacing:2,textTransform:"uppercase"}}>LP Rewards</span>
+          <span style={{fontFamily:F.mono,fontSize:8.5,background:C.bgCardC,border:`1px solid ${C.border}`,borderRadius:10,padding:"1px 7px",color:C.textSub}}>{rewards.length}</span>
+        </div>
+        <div style={{display:"flex",gap:4}}>
+          {["ALL",...types].map(f=>{
+            const active=filter===f,meta=f!=="ALL"?RTMETA[f]:null;
+            return(<button key={f} onClick={()=>setFilter(f)} style={{padding:"3px 10px",borderRadius:5,cursor:"pointer",border:"none",background:active?(meta?`${meta.color}14`:"rgba(255,255,255,0.07)"):"transparent",outline:active?`1px solid ${meta?meta.color+"50":C.borderB}`:`1px solid ${C.border}`,fontFamily:F.mono,fontSize:8.5,letterSpacing:0.5,fontWeight:active?700:400,color:active?(meta?meta.color:C.text):C.textDim,transition:"all .12s"}}>
+              {f==="ALL"?"ALL":RTMETA[f]?.short||f} <span style={{opacity:0.55}}>({f==="ALL"?rewards.length:rewards.filter(r=>r.type===f).length})</span>
+            </button>);
+          })}
+        </div>
+      </div>
+      <div style={{flexShrink:0,display:"grid",gridTemplateColumns:"110px 26px 1fr 80px 90px 80px 90px 32px",padding:"5px 18px",gap:10,alignItems:"center",borderBottom:`1px solid ${C.border}`,background:C.bgCardB}}>
+        {["STATUS","","MARKET","PLATFORM","TYPE","AMOUNT","TIME",""].map((h,i)=><span key={i} style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,letterSpacing:1.2,textTransform:"uppercase"}}>{h}</span>)}
+      </div>
+      <div style={{overflowY:"auto",flex:1}}>
+        {visible.map((row,i)=>{
+          const sm=SMETA[row.status]||SMETA.CLAIMED,tm=RTMETA[row.type]||RTMETA["Liquidity reward"];
+          const ec=ECO_COLOR[row.eco]||C.textDim,el=ECOSYSTEMS.find(e=>e.id===row.eco)?.label||row.eco;
+          return(<div key={i} style={{display:"grid",gridTemplateColumns:"110px 26px 1fr 80px 90px 80px 90px 32px",padding:"0 18px",gap:10,alignItems:"center",height:52,borderBottom:`1px solid ${C.border}10`,transition:"background .1s"}} onMouseEnter={e=>e.currentTarget.style.background=`${sm.color}05`} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+            <span style={{display:"inline-flex",alignItems:"center",gap:5,fontFamily:F.mono,fontSize:9.5,fontWeight:700,color:sm.color,background:sm.bg,border:`1px solid ${sm.border}`,borderRadius:5,padding:"3px 9px"}}><span style={{fontSize:11}}>{sm.icon}</span>{row.status}</span>
+            <div style={{width:26,height:26,borderRadius:6,flexShrink:0,background:`${tm.color}18`,border:`1px solid ${tm.color}30`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12}}>{tm.icon}</div>
+            <div style={{minWidth:0}}>
+              <div style={{fontFamily:F.body,fontSize:12,fontWeight:500,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:2}}>{row.market}</div>
+              <div style={{display:"flex",alignItems:"center",gap:5}}><span style={{fontFamily:F.mono,fontSize:8.5,color:C.textDim}}>{row.marketId}</span><span style={{color:C.textMute,fontSize:8}}>·</span><span style={{fontFamily:F.mono,fontSize:8.5,color:C.textDim}}>{row.txHash}</span></div>
+            </div>
+            <span style={{display:"inline-flex",alignItems:"center",gap:4,fontFamily:F.mono,fontSize:8.5,color:ec,background:`${ec}12`,border:`1px solid ${ec}28`,borderRadius:3,padding:"2px 6px"}}><span style={{width:4,height:4,borderRadius:"50%",background:ec}}/>{el}</span>
+            <span style={{fontFamily:F.mono,fontSize:8.5,fontWeight:600,color:tm.color,background:`${tm.color}10`,border:`1px solid ${tm.color}25`,borderRadius:3,padding:"2px 6px"}}>{tm.short}</span>
+            <span style={{fontFamily:F.mono,fontSize:13,fontWeight:700,color:C.green,textShadow:`0 0 10px ${C.green}50`,textAlign:"right"}}>+${row.amount.toFixed(2)}</span>
+            <span style={{fontFamily:F.mono,fontSize:9.5,color:C.textSub,textAlign:"right"}}>{row.time}</span>
+            <div style={{display:"flex",justifyContent:"center"}}><div style={{width:22,height:22,borderRadius:5,cursor:"pointer",background:`rgba(255,255,255,0.03)`,border:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:C.textDim,transition:"all .12s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=C.gold+"60";e.currentTarget.style.background=C.goldDim;}} onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.background="rgba(255,255,255,0.03)";}}>↗</div></div>
+          </div>);
+        })}
+      </div>
+      <div style={{flexShrink:0,borderTop:`1px solid ${C.border}`,padding:"10px 18px",display:"flex",background:C.bgCardB}}>
+        {[{label:"TOTAL CLAIMED",val:`+$${earned.toFixed(2)}`,color:C.green},{label:"PENDING",val:`+$${pending.toFixed(2)}`,color:C.goldB},{label:"ACTIVE MARKETS",val:`${new Set(rewards.map(r=>r.marketId)).size} markets`},{label:"REWARD EVENTS",val:`${rewards.length} total`}].map(({label,val,color},i)=>(
+          <div key={i} style={{flex:1,borderRight:i<3?`1px solid ${C.border}`:"none",paddingRight:16,marginRight:16}}>
+            <div style={{fontFamily:F.mono,fontSize:8,color:C.textDim,letterSpacing:1,marginBottom:4}}>{label}</div>
+            <div style={{fontFamily:F.mono,fontSize:13,fontWeight:700,color:color||C.text}}>{val}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── POSITIONS TAB ────────────────────────────────────────────────────────────
+function PositionsTab({wallet}){
+  const [sub,setSub]=useState("OPEN");
+  const positions=wallet.positions||{open:[],closed:[]};
+  const rows=sub==="OPEN"?positions.open:positions.closed;
+  const openPnl=(positions.open||[]).reduce((s,p)=>s+p.pnl,0);
+  const closedPnl=(positions.closed||[]).reduce((s,p)=>s+p.pnl,0);
+  const closedWins=(positions.closed||[]).filter(p=>p.won).length;
+  const cols="3fr 56px 68px 68px 80px 1fr 100px 88px";
+  return(
+    <div style={{flex:1,display:"flex",flexDirection:"column",background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden",minHeight:0}}>
+      {/* Sub-tab bar */}
+      <div style={{flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 18px",borderBottom:`1px solid ${C.border}`,background:C.bgCardB,height:42}}>
+        <div style={{display:"flex",alignItems:"center",gap:6}}>
+          <span style={{fontFamily:F.mono,fontSize:8.5,color:C.textDim,letterSpacing:1}}>POSITIONS /</span>
+          {[["OPEN",C.green],["CLOSED",C.red]].map(([label,color])=>{
+            const isA=sub===label,count=label==="OPEN"?positions.open?.length||0:positions.closed?.length||0;
+            return(<button key={label} onClick={()=>setSub(label)} style={{display:"flex",alignItems:"center",gap:5,padding:"4px 11px",borderRadius:5,cursor:"pointer",border:"none",background:isA?`${color}12`:"transparent",outline:isA?`1px solid ${color}40`:"1px solid transparent",transition:"all .15s"}}>
+              <span style={{width:5,height:5,borderRadius:"50%",flexShrink:0,background:isA?color:C.textDim,boxShadow:isA?`0 0 7px ${color}`:"none",transition:"all .2s"}}/>
+              <span style={{fontFamily:F.mono,fontSize:9,fontWeight:700,letterSpacing:0.8,color:isA?color:C.textDim}}>{label}</span>
+              <span style={{fontFamily:F.mono,fontSize:7.5,background:isA?`${color}20`:C.bgCardC,color:isA?color:C.textDim,border:`1px solid ${isA?color+"40":C.border}`,borderRadius:8,padding:"0 5px"}}>{count}</span>
+            </button>);
+          })}
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          {sub==="OPEN"&&<div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontFamily:F.mono,fontSize:8,color:C.textDim,letterSpacing:1}}>UNREALISED</span><Pnl val={openPnl} pct={fp(Math.round(openPnl/Math.max(1,(positions.open||[]).reduce((s,p)=>s+p.size,0))*100))} size={11}/></div>}
+          {sub==="CLOSED"&&<div style={{display:"flex",alignItems:"center",gap:12}}>
+            <div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontFamily:F.mono,fontSize:8,color:C.textDim,letterSpacing:1}}>REALISED</span><Pnl val={closedPnl} pct={fp(Math.round(closedPnl/Math.max(1,(positions.closed||[]).reduce((s,p)=>s+p.size,0))*100))} size={11}/></div>
+            <span style={{fontFamily:F.mono,fontSize:10}}><span style={{color:C.green,fontWeight:700}}>{closedWins}W</span><span style={{color:C.textDim}}> / </span><span style={{color:C.red,fontWeight:700}}>{(positions.closed?.length||0)-closedWins}L</span></span>
+          </div>}
+        </div>
+      </div>
+      {/* Col headers */}
+      <div style={{flexShrink:0,display:"grid",gridTemplateColumns:cols,padding:"5px 18px",gap:8,borderBottom:`1px solid ${C.border}`}}>
+        {(sub==="OPEN"?["MARKET","SIDE","SIZE","ENTRY","CURRENT","RANGE","PNL","EXPIRY"]:["MARKET","SIDE","SIZE","ENTRY","EXIT","RANGE","PNL","CLOSED"]).map(h=><span key={h} style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,letterSpacing:1.2,textTransform:"uppercase"}}>{h}</span>)}
+      </div>
+      <div style={{overflowY:"auto",flex:1}}>
+        {rows.length===0&&<div style={{padding:40,textAlign:"center",color:C.textDim,fontFamily:F.mono,fontSize:11}}>No {sub.toLowerCase()} positions</div>}
+        {rows.map((pos,i)=>{
+          const isOpen=sub==="OPEN",ec=ECO_COLOR[pos.eco]||C.textDim,el=ECOSYSTEMS.find(e=>e.id===pos.eco)?.label||pos.eco,sp=pos.side==="YES"||pos.side==="BUY";
+          const cPrice=isOpen?pos.current:pos.exit, pricePos=cPrice>=pos.entry;
+          const ep=pos.entry*100, cp=cPrice*100;
+          return(<div key={i} style={{display:"grid",gridTemplateColumns:cols,padding:"10px 18px",gap:8,alignItems:"center",borderBottom:`1px solid ${C.border}10`,transition:"background .1s"}} onMouseEnter={e=>e.currentTarget.style.background=`${ec}05`} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+            <div style={{display:"flex",alignItems:"center",gap:9,minWidth:0}}>
+              <div style={{width:30,height:30,flexShrink:0,borderRadius:7,background:`${ec}12`,border:`1px solid ${ec}28`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13}}>🎁</div>
+              <div style={{minWidth:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:3}}><span style={{fontFamily:F.body,fontSize:11.5,fontWeight:500,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{pos.title}</span><Tag label={el} color={ec}/></div>
+                <span style={{fontFamily:F.mono,fontSize:8,color:C.textDim}}>{pos.id}</span>
+              </div>
+            </div>
+            <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",fontFamily:F.mono,fontSize:9.5,fontWeight:700,color:sp?C.green:C.red,background:sp?C.greenDim:C.redDim,border:`1px solid ${sp?C.green+"40":C.red+"40"}`,borderRadius:4,padding:"2px 7px"}}>{pos.side}</span>
+            <span style={{fontFamily:F.mono,fontSize:10.5,color:C.textSub}}>${pos.size.toLocaleString()}</span>
+            <span style={{fontFamily:F.mono,fontSize:10.5,color:C.textDim}}>${pos.entry.toFixed(2)}</span>
+            <span style={{fontFamily:F.mono,fontSize:10.5,fontWeight:600,color:pricePos?C.green:C.red}}>${cPrice?.toFixed(2)}</span>
+            <div style={{padding:"0 4px"}}>
+              <div style={{position:"relative",height:3,background:C.bgCardC,borderRadius:2,width:"100%"}}>
+                <div style={{position:"absolute",top:0,height:"100%",borderRadius:2,left:`${Math.min(ep,cp)}%`,width:`${Math.abs(cp-ep)}%`,background:pricePos?`${C.green}70`:`${C.red}70`}}/>
+                <div style={{position:"absolute",top:"50%",transform:"translate(-50%,-50%)",left:`${ep}%`,width:6,height:6,borderRadius:"50%",background:C.textDim,border:`1px solid ${C.bgCardC}`,zIndex:1}}/>
+                <div style={{position:"absolute",top:"50%",transform:"translate(-50%,-50%)",left:`${cp}%`,width:8,height:8,borderRadius:"50%",background:pricePos?C.green:C.red,border:`1.5px solid ${C.bgCard}`,boxShadow:`0 0 6px ${pricePos?C.green:C.red}`,zIndex:2}}/>
+              </div>
+            </div>
+            <Pnl val={pos.pnl} pct={fp(pos.pnlPct)} size={11}/>
+            <div>
+              {isOpen?<div>
+                <div style={{fontFamily:F.mono,fontSize:9.5,color:C.textSub,marginBottom:3}}>{pos.expiry}</div>
+                {pos.confidence&&<div style={{display:"flex",alignItems:"center",gap:5}}>
+                  <div style={{width:40,height:2,background:C.bgCardC,borderRadius:2,overflow:"hidden"}}><div style={{width:`${pos.confidence}%`,height:"100%",background:pos.confidence>=70?C.green:pos.confidence>=50?C.goldB:C.red,borderRadius:2}}/></div>
+                  <span style={{fontFamily:F.mono,fontSize:8,color:C.textDim}}>{pos.confidence}%</span>
+                </div>}
+              </div>:<div>
+                <div style={{fontFamily:F.mono,fontSize:9.5,color:C.textSub,marginBottom:3}}>{pos.closedAt}</div>
+                <span style={{fontFamily:F.mono,fontSize:8.5,fontWeight:700,color:pos.won?C.green:C.red,background:pos.won?C.greenDim:C.redDim,border:`1px solid ${pos.won?C.green+"40":C.red+"40"}`,borderRadius:3,padding:"1px 6px"}}>{pos.won?"✓ WON":"✗ LOST"}</span>
+              </div>}
+            </div>
+          </div>);
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── PROFILE PAGE ─────────────────────────────────────────────────────────────
+function ProfilePage({query,onBack}){
+  const [tab,setTab]=useState("POSITIONS");
+  const wallet=WALLETS[query]||WALLETS["0xA1b2c3d4e5f6789abc"];
+  const ec=ECO_COLOR[wallet.eco]||C.gold;
+  const eco=ECOSYSTEMS.find(e=>e.id===wallet.eco);
+
+  const TABS=[
+    {id:"POSITIONS",  label:"Positions",   badge:(wallet.positions?.open?.length||0)+(wallet.positions?.closed?.length||0), bc:C.gold},
+    {id:"TOKEN FLOW", label:"Token Flow",  badge:null, bc:C.gold},
+    {id:"REWARDS",    label:"Rewards",     badge:wallet.rewards?.length||0, bc:C.green},
+    {id:"ACTIVITY",   label:"Activity",    badge:null, bc:C.gold},
+  ];
+
+  return(
+    <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column"}}>
+      <div style={{padding:"18px 28px 0",flexShrink:0,background:`linear-gradient(180deg,${C.bgCardB},${C.bg})`}}>
+        <button onClick={onBack} style={{display:"inline-flex",alignItems:"center",gap:6,background:"none",border:"none",cursor:"pointer",color:C.textDim,fontFamily:F.mono,fontSize:8.5,letterSpacing:1,marginBottom:16,padding:0,transition:"color .15s"}} onMouseEnter={e=>e.currentTarget.style.color=C.goldB} onMouseLeave={e=>e.currentTarget.style.color=C.textDim}>← BACK TO LEADERBOARD</button>
+
+        {/* Hero card */}
+        <div style={{background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden",marginBottom:16,position:"relative"}}>
+          <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,transparent,${ec}60,transparent)`}}/>
+          <div style={{position:"absolute",top:0,left:0,width:3,height:"100%",background:`linear-gradient(180deg,${ec},${ec}18)`}}/>
+          <div style={{position:"absolute",top:-30,right:-30,width:220,height:160,background:`radial-gradient(ellipse,${ec}10 0%,transparent 70%)`,pointerEvents:"none"}}/>
+          <div style={{padding:"20px 24px 20px 28px",display:"flex",alignItems:"center",gap:20,position:"relative"}}>
+            <div style={{width:58,height:58,borderRadius:13,flexShrink:0,background:`${ec}16`,border:`1.5px solid ${ec}35`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:F.display,fontWeight:900,fontSize:22,color:ec,boxShadow:`0 4px 22px ${ec}20`}}>{wallet.handle[1]?.toUpperCase()}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+                <span style={{fontFamily:F.display,fontWeight:900,fontSize:20,color:C.text,letterSpacing:-0.3}}>{wallet.handle}</span>
+                {wallet.tags.map(tag=><Tag key={tag} label={tag} color={tag==="WHALE"?C.blue:tag==="DeFi"?C.purple:C.gold}/>)}
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <span style={{fontFamily:F.mono,fontSize:9,color:C.textDim}}>{wallet.address}</span>
+                <span style={{color:C.textMute}}>·</span>
+                <span style={{display:"inline-flex",alignItems:"center",gap:4,fontFamily:F.mono,fontSize:8.5,color:ec}}><span style={{width:5,height:5,borderRadius:"50%",background:ec}}/>{eco?.label} · {eco?.chain}</span>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:0,flexShrink:0}}>
+              {[{l:"Volume",v:"$"+wallet.volume,c:null},{l:"Win Rate",v:wallet.winRate+"%",c:wallet.winRate>=70?C.green:C.goldB},{l:"PnL",v:`+$${wallet.pnl}`,c:C.green},{l:"P&L %",v:"+"+wallet.pnlPct+"%",c:C.green}].map((s,i)=>(
+                <div key={i} style={{padding:"0 18px",borderLeft:i>0?`1px solid ${C.border}`:"none",textAlign:"right"}}>
+                  <div style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:5}}>{s.l}</div>
+                  <div style={{fontFamily:F.display,fontWeight:800,fontSize:17,color:s.c||C.text,lineHeight:1,textShadow:s.c?`0 0 16px ${s.c}25`:"none"}}>{s.v}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Tab bar */}
+        <div style={{display:"flex",alignItems:"stretch",borderBottom:`1px solid ${C.border}`,paddingLeft:2}}>
+          {TABS.map(t=>{
+            const active=tab===t.id;
+            return(<button key={t.id} onClick={()=>setTab(t.id)} style={{background:"none",border:"none",padding:"0 18px",height:40,marginBottom:-1,color:active?C.text:C.textDim,borderBottom:`2px solid ${active?t.bc:"transparent"}`,fontFamily:F.mono,fontSize:9,letterSpacing:1.2,cursor:"pointer",transition:"color .15s,border-color .15s",display:"flex",alignItems:"center",gap:6,whiteSpace:"nowrap",textTransform:"uppercase"}}>
+              {active&&<span style={{width:5,height:5,borderRadius:"50%",background:t.bc,boxShadow:`0 0 7px ${t.bc}`,flexShrink:0}}/>}
+              {t.label}
+              {t.badge!==null&&<span style={{fontFamily:F.mono,fontSize:7.5,background:active?`${t.bc}20`:C.bgCardC,color:active?t.bc:C.textDim,border:`1px solid ${active?t.bc+"40":C.border}`,borderRadius:8,padding:"1px 6px"}}>{t.badge}</span>}
+            </button>);
+          })}
+        </div>
+      </div>
+
+      {/* Tab content */}
+      <div style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",padding:"14px 28px 24px",overflow:"hidden"}}>
+        {tab==="POSITIONS"  && <PositionsTab wallet={wallet}/>}
+        {tab==="TOKEN FLOW" && <TokenFlowTab wallet={wallet}/>}
+        {tab==="REWARDS"    && <RewardsTab   wallet={wallet}/>}
+        {tab==="ACTIVITY"   && <ActivityTab  wallet={wallet}/>}
+      </div>
+    </div>
+  );
+}
+
+// ─── APP ──────────────────────────────────────────────────────────────────────
+function App(){
+  const [page,setPage]=useState("HOME");
+  const [query,setQuery]=useState("");
+  function go(q,dest){if(dest==="LEADERBOARD"){setPage("LEADERBOARD");return;}if(q){setQuery(q);setPage("PROFILE");}}
+  return(
+    <>
+      <style>{`
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+        html,body{height:100%;background:${C.bgDeep};overflow:hidden;}
+        #root{height:100%;display:flex;flex-direction:column;}
+        ::selection{background:${C.goldDim};color:${C.text};}
+        ::-webkit-scrollbar{width:3px;height:3px;}
+        ::-webkit-scrollbar-track{background:transparent;}
+        ::-webkit-scrollbar-thumb{background:${C.border};border-radius:3px;}
+        ::-webkit-scrollbar-thumb:hover{background:${C.borderB};}
+        input::placeholder{color:${C.textMute};}
+        button{transition:all .15s;cursor:pointer;}
+        button:active{transform:scale(0.97);}
+        @keyframes blip{0%,100%{opacity:1;}50%{opacity:0.25;}}
+        @keyframes ping{0%{transform:scale(1);opacity:0.55;}100%{transform:scale(2.4);opacity:0;}}
+        @keyframes ticker{0%{transform:translateX(0);}100%{transform:translateX(-33.33%);}}
+      `}</style>
+      <div style={{height:"100%",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+        <TopNav page={page} setPage={setPage} onAnalyze={go}/>
+        <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
+          {page==="HOME"        &&<HomePage        onAnalyze={go}/>}
+          {page==="LEADERBOARD" &&<LeaderboardPage onAnalyze={go}/>}
+          {page==="PROFILE"     &&<ProfilePage     query={query} onBack={()=>setPage("LEADERBOARD")}/>}
+        </div>
+        <div style={{flexShrink:0,height:26,display:"flex",alignItems:"center",padding:"0 28px",borderTop:`1px solid ${C.border}`,justifyContent:"space-between",background:C.bgDeep}}>
+          <span style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim}}>© 2026 ODDY.AI</span>
+          <span style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim}}>ERC-20 token flow · 6 prediction market ecosystems</span>
+        </div>
+      </div>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
