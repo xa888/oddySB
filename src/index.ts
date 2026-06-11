@@ -1,7 +1,7 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
-import { getRedis } from "./cache/redis.js";
+import { testConnection } from "./cache/supabase.js";
 import { statsRoutes } from "./routes/stats.js";
 import { leaderboardRoutes } from "./routes/leaderboard.js";
 import { walletRoutes } from "./routes/wallet.js";
@@ -34,12 +34,12 @@ await app.register(leaderboardRoutes, { prefix: "/v1/leaderboard" });
 await app.register(walletRoutes,      { prefix: "/v1/wallet" });
 await app.register(searchRoutes,      { prefix: "/v1" });
 
-// Connect to Redis (optional — API works without it, just uncached)
+// Connect to Supabase (optional — API works without it, just uncached)
 try {
-  await getRedis().ping();
-  app.log.info("[redis] connected");
+  await testConnection();
+  app.log.info("[supabase] connected");
 } catch {
-  app.log.warn("[redis] unavailable — running without cache");
+  app.log.warn("[supabase] unavailable — running without cache");
 }
 
 // Start server

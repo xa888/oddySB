@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { cacheGetOrFetch } from "../cache/redis.js";
+import { cacheGetOrFetch } from "../cache/supabase.js";
 import * as predexon from "../providers/predexon.js";
 import * as synthesis from "../providers/synthesis.js";
 import * as radion from "../providers/radion.js";

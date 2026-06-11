@@ -35,12 +35,12 @@ const F = { display:"'Syne', sans-serif", mono:"'Space Mono', monospace", body:"
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 const ECOSYSTEMS = [
-  {id:"polymarket",  label:"Polymarket",  color:"#c9983a", chain:"Polygon",   tvl:"$2.1B"},
-  {id:"kalshi",      label:"Kalshi",      color:"#c45c87", chain:"Regulated", tvl:"$890M"},
-  {id:"hyperliquid", label:"Hyperliquid", color:"#3dba7a", chain:"HyperEVM",  tvl:"$3.4B"},
-  {id:"limitless",   label:"Limitless",   color:"#527cd9", chain:"Base",      tvl:"$44M" },
-  {id:"predict",     label:"Predict",     color:"#3dba7a", chain:"BNB",       tvl:"$88M" },
-  {id:"opinion",     label:"Opinion",     color:"#8a6ed4", chain:"Solana",    tvl:"$31M" },
+  {id:"polymarket",  label:"Polymarket",  color:"#c9983a", chain:"Polygon",   tvl:"$2.1B", status:"LIVE", vol24h:"$118.4M"},
+  {id:"kalshi",      label:"Kalshi",      color:"#c45c87", chain:"Regulated", tvl:"$890M", status:"LIVE", vol24h:"$74.2M" },
+  {id:"hyperliquid", label:"Hyperliquid", color:"#3dba7a", chain:"HyperEVM",  tvl:"$3.4B", status:"LIVE", vol24h:"$61.8M" },
+  {id:"limitless",   label:"Limitless",   color:"#527cd9", chain:"Base",      tvl:"$44M",  status:"DOWN", vol24h:"$0"     },
+  {id:"predict",     label:"Predict",     color:"#3dba7a", chain:"BNB",       tvl:"$88M",  status:"LIVE", vol24h:"$18.9M" },
+  {id:"opinion",     label:"Opinion",     color:"#8a6ed4", chain:"Solana",    tvl:"$31M",  status:"LIVE", vol24h:"$10.7M" },
 ];
 const ECO_COLOR = Object.fromEntries(ECOSYSTEMS.map(e=>[e.id,e.color]));
 
@@ -65,7 +65,7 @@ function buildActivity(addr){
   const s=addr.length*17;
   const types=["BUY","SELL","RECEIVE","SEND","BUY","BUY","RECEIVE","SELL","SEND","BUY","RECEIVE","SELL","SELL","SEND","BUY","SELL"];
   const mins=[2,6,11,19,28,41,55,68,87,106,132,158,192,225,261,290];
-  return types.map((type,i)=>{
+  const tradeRows=types.map((type,i)=>{
     const r=n=>sr(s*31+i*13+n);
     const tok=OUTCOME_TOKENS[Math.floor(r(1)*OUTCOME_TOKENS.length)];
     const peer=PEER_WALLETS[Math.floor(r(2)*PEER_WALLETS.length)];
@@ -76,8 +76,20 @@ function buildActivity(addr){
     const pnl=type==="SELL"?(pos?"+":"-")+"$"+pnlAmt.toLocaleString():null;
     const pnlPct=type==="SELL"?(pos?pnlPctVal:-pnlPctVal):null;
     const hash=Array.from({length:8},(_,k)=>"0123456789abcdef"[Math.floor(r(8+k)*16)]).join("");
-    return{type,tok,peer,qty,price,value,pnl,pnlPct,pnlPos:pos,minsAgo:mins[i],hash:`0x${hash}...${hash.slice(-4)}`};
+    return{type,tok,peer,qty,price,value,pnl,pnlPct,pnlPos:pos,minsAgo:mins[i],hash:`0x${hash}...${hash.slice(-4)}`,isLP:false};
   });
+  const lpTypes=["LP_ADD","LP_CLAIM","LP_ADD","LP_REMOVE","LP_CLAIM"];
+  const lpMins=[35,72,140,210,310];
+  const lpRows=lpTypes.map((type,i)=>{
+    const r=n=>sr(s*71+i*29+n);
+    const tok=OUTCOME_TOKENS[Math.floor(r(1)*OUTCOME_TOKENS.length)];
+    const lpVol=Math.floor(r(2)*48000+2000);
+    const lpFee=type==="LP_CLAIM"?+(r(3)*420+12).toFixed(2):null;
+    const lpRoi=type==="LP_CLAIM"?Math.floor(r(4)*340+40):null;
+    const hash=Array.from({length:8},(_,k)=>"0123456789abcdef"[Math.floor(r(8+k)*16)]).join("");
+    return{type,tok,peer:null,qty:lpVol,price:null,value:lpVol,pnl:lpFee?"+$"+lpFee.toFixed(2):null,pnlPct:lpRoi,pnlPos:true,minsAgo:lpMins[i],hash:`0x${hash}...${hash.slice(-4)}`,isLP:true,lpFee,lpRoi};
+  });
+  return [...tradeRows,...lpRows].sort((a,b)=>a.minsAgo-b.minsAgo);
 }
 
 const WALLETS={
@@ -152,18 +164,18 @@ const WALLETS={
 };
 
 const TRENDING=[
-  {addr:"0xA1b2c3d4e5f6789abc",handle:"@winstony",    pnl:"+$18.4K",pct:"+500%",eco:"polymarket", flag:"HOT",  vol:"$50.2M",winRate:73,pos:8},
-  {addr:"vitalik.eth",         handle:"@vitalik",      pnl:"+$2.4M", pct:"+800%",eco:"hyperliquid",flag:"WHALE",vol:"$120M",  winRate:81,pos:12},
-  {addr:"0xCafe...Babe02",     handle:"@alpha_hunter", pnl:"+$85K",  pct:"+320%",eco:"kalshi",     flag:"NEW",  vol:"$4.1M",  winRate:68,pos:5},
-  {addr:"0xDead...Beef01",     handle:"@polyking",     pnl:"+$440K", pct:"+210%",eco:"limitless",  flag:"HOT",  vol:"$22M",   winRate:77,pos:9},
+  {addr:"0xA1b2c3d4e5f6789abc",handle:"@winstony",    pnl:"+$18.4K",pct:"+500%",eco:"polymarket", flag:"HOT",  vol:"$50.2M",winRate:73,pos:8, roi24h:"+184%"},
+  {addr:"vitalik.eth",         handle:"@vitalik",      pnl:"+$2.4M", pct:"+800%",eco:"hyperliquid",flag:"WHALE",vol:"$120M",  winRate:81,pos:12,roi24h:"+97%"},
+  {addr:"0xCafe...Babe02",     handle:"@alpha_hunter", pnl:"+$85K",  pct:"+320%",eco:"kalshi",     flag:"NEW",  vol:"$4.1M",  winRate:68,pos:5, roi24h:"+63%"},
+  {addr:"0xDead...Beef01",     handle:"@polyking",     pnl:"+$440K", pct:"+210%",eco:"limitless",  flag:"HOT",  vol:"$22M",   winRate:77,pos:9, roi24h:"+41%"},
 ];
 
 const REWARDS_LB=[
-  {id:"0x71c...A7bf",platform:"Polymarket", markets:14,pts:2840,lpVol:"$9.2M", rewards:88400,winRate:91.2,pnl:"+$142K",color:"#c9983a"},
-  {id:"0x342...184E",platform:"Kalshi",     markets:8, pts:1620,lpVol:"$4.1M", rewards:44200,winRate:74.8,pnl:"+$68K", color:"#3ebf81"},
-  {id:"0xf9a...2c11",platform:"Hyperliquid",markets:11,pts:1180,lpVol:"$3.6M", rewards:31800,winRate:68.5,pnl:"+$41K", color:"#527cd9"},
-  {id:"0xb88...9f2d",platform:"Polymarket", markets:6, pts:940, lpVol:"$2.8M", rewards:24100,winRate:82.3,pnl:"+$29K", color:"#8a6ed4"},
-  {id:"0xCC2...8812",platform:"Limitless",  markets:19,pts:820, lpVol:"$2.1M", rewards:19600,winRate:61.4,pnl:"+$18K", color:"#3ebf81"},
+  {id:"0x71c...A7bf",platform:"Polymarket", markets:14,pts:2840,lpVol:"$9.2M", rewards:88400,winRate:91.2,pnl:"+$142K",color:"#c9983a",roiPct:"+68.4%",lastActive:1},
+  {id:"0x342...184E",platform:"Kalshi",     markets:8, pts:1620,lpVol:"$4.1M", rewards:44200,winRate:74.8,pnl:"+$68K", color:"#3ebf81",roiPct:"+41.2%",lastActive:1},
+  {id:"0xf9a...2c11",platform:"Hyperliquid",markets:11,pts:1180,lpVol:"$3.6M", rewards:31800,winRate:68.5,pnl:"+$41K", color:"#527cd9",roiPct:"+29.7%",lastActive:2},
+  {id:"0xb88...9f2d",platform:"Polymarket", markets:6, pts:940, lpVol:"$2.8M", rewards:24100,winRate:82.3,pnl:"+$29K", color:"#8a6ed4",roiPct:"+22.6%",lastActive:3},
+  {id:"0xCC2...8812",platform:"Limitless",  markets:19,pts:820, lpVol:"$2.1M", rewards:19600,winRate:61.4,pnl:"+$18K", color:"#3ebf81",roiPct:"+15.1%",lastActive:5},
 ];
 
 const LB_PLATFORMS=[
@@ -234,9 +246,17 @@ function Pnl({val,pct,size=12}){
   </div>;
 }
 function TypeChip({type}){
-  const MAP={BUY:{c:C.green,bg:C.greenDim,i:"↑"},SELL:{c:C.red,bg:C.redDim,i:"↓"},RECEIVE:{c:C.blue,bg:C.blueDim,i:"←"},SEND:{c:C.gold,bg:C.goldDim,i:"→"}};
+  const MAP={
+    BUY:      {c:C.green, bg:C.greenDim,  i:"↑",  label:"BUY"},
+    SELL:     {c:C.red,   bg:C.redDim,    i:"↓",  label:"SELL"},
+    RECEIVE:  {c:C.blue,  bg:C.blueDim,   i:"←",  label:"RECEIVE"},
+    SEND:     {c:C.gold,  bg:C.goldDim,   i:"→",  label:"SEND"},
+    LP_ADD:   {c:C.purple,bg:C.purpleDim, i:"⊕",  label:"LP ADD"},
+    LP_REMOVE:{c:C.red,   bg:C.redDim,    i:"⊖",  label:"LP REM"},
+    LP_CLAIM: {c:C.green, bg:C.greenDim,  i:"◎",  label:"LP CLAIM"},
+  };
   const m=MAP[type]||MAP.BUY;
-  return <span style={{display:"inline-flex",alignItems:"center",gap:4,background:m.bg,border:`1px solid ${m.c}25`,borderRadius:3,padding:"2px 7px",fontFamily:F.mono,fontSize:9,fontWeight:700,color:m.c}}><span>{m.i}</span>{type}</span>;
+  return <span style={{display:"inline-flex",alignItems:"center",gap:4,background:m.bg,border:`1px solid ${m.c}25`,borderRadius:3,padding:"2px 7px",fontFamily:F.mono,fontSize:9,fontWeight:700,color:m.c,whiteSpace:"nowrap"}}><span>{m.i}</span>{m.label}</span>;
 }
 
 // ─── TOP NAV ─────────────────────────────────────────────────────────────────
@@ -361,8 +381,9 @@ function HomePage({onAnalyze}){
                   <span style={{width:4,height:4,borderRadius:"50%",background:C.gold,animation:"blip 1.5s ease-in-out infinite"}}/>
                   <span style={{fontFamily:F.mono,fontSize:7.5,color:C.goldB,letterSpacing:1}}>LIVE</span>
                 </div>
+                <span style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,letterSpacing:0.8,background:C.bgCardC,border:`1px solid ${C.border}`,borderRadius:4,padding:"2px 6px"}}>TOP ROI · 24H</span>
               </div>
-              <span style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,letterSpacing:0.5}}>WIN RATE / PNL</span>
+              <span style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,letterSpacing:0.5}}>24H ROI / WIN RATE</span>
             </div>
             <div style={{flex:1,position:"relative"}}>
               <div style={{position:"absolute",left:50,top:0,bottom:0,width:1,background:`linear-gradient(180deg,${C.gold}35 0%,${C.gold}05 100%)`,pointerEvents:"none"}}/>
@@ -386,8 +407,8 @@ function HomePage({onAnalyze}){
                       </div>
                     </div>
                     <div style={{textAlign:"right",flexShrink:0}}>
-                      <div style={{fontFamily:F.display,fontWeight:800,fontSize:13,color:C.green,marginBottom:2}}>{t.pnl}</div>
-                      <div style={{fontFamily:F.mono,fontSize:8.5,color:`${C.green}70`}}>{t.pct}</div>
+                      <div style={{fontFamily:F.display,fontWeight:800,fontSize:13,color:C.green,marginBottom:2}}>{t.roi24h}</div>
+                      <div style={{fontFamily:F.mono,fontSize:8,color:C.textDim}}>{t.winRate}% WR · {t.pnl}</div>
                     </div>
                     <div style={{width:24,height:24,borderRadius:5,flexShrink:0,background:i===0?C.gold:C.bgCardC,border:`1px solid ${i===0?C.gold:C.border}`,display:"flex",alignItems:"center",justifyContent:"center",color:i===0?"#0e0900":C.textDim,fontSize:10,fontWeight:700}}>↗</div>
                   </div>
@@ -417,11 +438,18 @@ function HomePage({onAnalyze}){
               <div style={{padding:"8px 10px",display:"flex",flexDirection:"column",gap:3}}>
                 {ECOSYSTEMS.map(eco=>{
                   const on=sel.has(eco.id);
+                  const isDown=eco.status==="DOWN";
                   return(<div key={eco.id} onClick={()=>toggle(eco.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:7,cursor:"pointer",background:on?`${eco.color}08`:"transparent",border:`1px solid ${on?eco.color+"22":C.borderC}`,transition:"all .14s"}}>
                     <div style={{width:7,height:7,borderRadius:"50%",flexShrink:0,background:on?eco.color:C.bgCardD,border:`1.5px solid ${on?eco.color:C.textMute}`,boxShadow:on?`0 0 6px ${eco.color}80`:"none",transition:"all .14s"}}/>
                     <span style={{fontFamily:F.body,fontSize:12,color:on?C.text:C.textDim,fontWeight:on?500:400,flex:1}}>{eco.label}</span>
-                    <span style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim}}>{eco.chain}</span>
-                    <span style={{fontFamily:F.mono,fontSize:9,fontWeight:700,color:on?eco.color:C.textMute}}>{eco.tvl}</span>
+                    <div style={{display:"flex",alignItems:"center",gap:3,background:isDown?`${C.red}12`:`${C.green}10`,border:`1px solid ${isDown?C.red+"30":C.green+"30"}`,borderRadius:3,padding:"1px 5px",flexShrink:0}}>
+                      <span style={{width:4,height:4,borderRadius:"50%",background:isDown?C.red:C.green,animation:isDown?"none":"blip 2s ease-in-out infinite",flexShrink:0}}/>
+                      <span style={{fontFamily:F.mono,fontSize:7,fontWeight:700,color:isDown?C.red:C.green,letterSpacing:0.5}}>{eco.status}</span>
+                    </div>
+                    <div style={{textAlign:"right",flexShrink:0}}>
+                      <div style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,letterSpacing:0.5,marginBottom:1}}>24H VOL</div>
+                      <div style={{fontFamily:F.mono,fontSize:9,fontWeight:700,color:isDown?C.textMute:on?eco.color:C.textSub}}>{isDown?"—":eco.vol24h}</div>
+                    </div>
                   </div>);
                 })}
               </div>
@@ -433,8 +461,112 @@ function HomePage({onAnalyze}){
   );
 }
 
+// ─── REWARDS TABLE ────────────────────────────────────────────────────────────
+const RW_COLS=[
+  {key:"id",        label:"User",          w:"1.5fr", align:"left"},
+  {key:"platform",  label:"Platform",      w:"110px", align:"left"},
+  {key:"markets",   label:"Positions",     w:"84px",  align:"right"},
+  {key:"winRate",   label:"Win Rate",      w:"106px", align:"right"},
+  {key:"rewards",   label:"Rewards (USD)", w:"120px", align:"right"},
+  {key:"roiPct",    label:"ROI %",         w:"80px",  align:"right"},
+  {key:"lastActive",label:"Last Active",   w:"88px",  align:"right"},
+];
+const RW_MEDALS=[C.gold,"#9ca3af","#a07840"];
+
+const RW_PER_PAGE=10;
+function RewardsTable(){
+  const [rwSort,setRwSort]=useState("rewards");
+  const [rwDir,setRwDir]=useState("desc");
+  const [rwPage,setRwPage]=useState(1);
+  const sortedRewards=[...REWARDS_LB].sort((a,b)=>{
+    const va=a[rwSort],vb=b[rwSort];
+    if(typeof va==="string"&&typeof vb==="string")return rwDir==="asc"?va.localeCompare(vb):vb.localeCompare(va);
+    return rwDir==="asc"?va-vb:vb-va;
+  });
+  const rwGrid=RW_COLS.map(c=>c.w).join(" ");
+  const rwPages=Math.max(1,Math.ceil(sortedRewards.length/RW_PER_PAGE));
+  const pagedRewards=sortedRewards.slice((rwPage-1)*RW_PER_PAGE,rwPage*RW_PER_PAGE);
+  function rwSortFn(k){if(rwSort===k)setRwDir(d=>d==="desc"?"asc":"desc");else{setRwSort(k);setRwDir("desc");setRwPage(1);}}
+  return(
+    <div style={{height:"100%",display:"flex",flexDirection:"column",background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:"0 10px 10px 10px",overflow:"hidden"}}>
+      {/* Column headers */}
+      <div style={{display:"grid",gridTemplateColumns:rwGrid,padding:"0 18px",gap:8,background:C.bgCardB,borderBottom:`1px solid ${C.border}`,height:34,alignItems:"center",flexShrink:0}}>
+        {RW_COLS.map(col=>{
+          const active=rwSort===col.key;
+          return(<div key={col.key} onClick={()=>rwSortFn(col.key)} style={{display:"flex",alignItems:"center",gap:3,cursor:"pointer",justifyContent:col.align==="right"?"flex-end":"flex-start",color:active?C.goldB:C.textDim,userSelect:"none",transition:"color .12s"}} onMouseEnter={e=>{if(!active)e.currentTarget.style.color=C.textSub;}} onMouseLeave={e=>{if(!active)e.currentTarget.style.color=C.textDim;}}>
+            <span style={{fontFamily:F.mono,fontSize:7.5,letterSpacing:1,textTransform:"uppercase"}}>{col.label}</span>
+            <span style={{fontSize:8}}>{active?(rwDir==="desc"?"↓":"↑"):"↕"}</span>
+          </div>);
+        })}
+      </div>
+      {/* Rows */}
+      <div style={{overflowY:"auto",flex:1}}>
+        {pagedRewards.map((r,i)=>{
+          const lagStr=r.lastActive===1?"Today":r.lastActive<=7?`${r.lastActive}d ago`:`${Math.round(r.lastActive/7)}w ago`;
+          const lagC=r.lastActive<=1?C.green:r.lastActive<=3?C.goldB:C.textDim;
+          const roi=parseFloat(r.roiPct);
+          return(
+            <div key={i} style={{display:"grid",gridTemplateColumns:rwGrid,padding:"0 18px",gap:8,height:54,alignItems:"center",borderBottom:`1px solid ${C.border}08`,background:"transparent",cursor:"pointer",transition:"background .1s"}} onMouseEnter={e=>e.currentTarget.style.background=`${r.color}07`} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+              {/* User */}
+              <div style={{display:"flex",alignItems:"center",gap:9,minWidth:0}}>
+                <div style={{minWidth:0}}>
+                  <div style={{fontFamily:F.mono,fontSize:10.5,fontWeight:700,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.id}</div>
+                  <div style={{fontFamily:F.mono,fontSize:7.5,color:C.textMute,marginTop:1}}>{r.pts.toLocaleString()} pts · {r.lpVol} LP vol</div>
+                </div>
+              </div>
+              {/* Platform */}
+              <div><Tag label={r.platform} color={r.color}/></div>
+              {/* Positions */}
+              <div style={{textAlign:"right"}}><span style={{fontFamily:F.mono,fontSize:11,color:C.textSub,fontWeight:600}}>{r.markets}</span></div>
+              {/* Win Rate */}
+              <div style={{display:"flex",justifyContent:"flex-end"}}><WinBar val={r.winRate}/></div>
+              {/* Rewards (USD) */}
+              <div style={{textAlign:"right"}}>
+                <div style={{fontFamily:F.display,fontWeight:800,fontSize:14,color:C.green,lineHeight:1,textShadow:`0 0 12px ${C.green}40`}}>${r.rewards.toLocaleString()}</div>
+                <div style={{fontFamily:F.mono,fontSize:7.5,color:C.goldB,marginTop:2}}>{r.pnl} P&L</div>
+              </div>
+              {/* ROI % */}
+              <div style={{textAlign:"right"}}><span style={{fontFamily:F.mono,fontSize:11,fontWeight:700,color:roi>=0?C.green:C.red,textShadow:`0 0 10px ${roi>=0?C.green:C.red}30`}}>{r.roiPct}</span></div>
+              {/* Last Active */}
+              <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:7}}>
+                <span style={{fontFamily:F.mono,fontSize:8.5,color:lagC,fontWeight:r.lastActive<=1?700:400}}>{lagStr}</span>
+                <div style={{width:20,height:20,borderRadius:4,flexShrink:0,background:C.bgCardC,border:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",color:C.textDim,fontSize:9}}>↗</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{flexShrink:0,borderTop:`1px solid ${C.border}`,padding:"6px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",background:C.bgCardB,gap:12}}>
+        <span style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,flexShrink:0}}>{REWARDS_LB.length} LP providers · ranked by rewards</span>
+        <div style={{display:"flex",alignItems:"center",gap:4}}>
+          <button onClick={()=>setRwPage(1)} disabled={rwPage===1} style={{padding:"3px 7px",borderRadius:4,border:`1px solid ${rwPage===1?C.borderC:C.border}`,background:"transparent",fontFamily:F.mono,fontSize:9,color:rwPage===1?C.textMute:C.textSub,cursor:rwPage===1?"default":"pointer",transition:"all .15s"}} onMouseEnter={e=>{if(rwPage>1)e.currentTarget.style.borderColor=C.green+"55";}} onMouseLeave={e=>e.currentTarget.style.borderColor=rwPage===1?C.borderC:C.border}>«</button>
+          <button onClick={()=>setRwPage(p=>Math.max(1,p-1))} disabled={rwPage===1} style={{padding:"3px 7px",borderRadius:4,border:`1px solid ${rwPage===1?C.borderC:C.border}`,background:"transparent",fontFamily:F.mono,fontSize:9,color:rwPage===1?C.textMute:C.textSub,cursor:rwPage===1?"default":"pointer",transition:"all .15s"}} onMouseEnter={e=>{if(rwPage>1)e.currentTarget.style.borderColor=C.green+"55";}} onMouseLeave={e=>e.currentTarget.style.borderColor=rwPage===1?C.borderC:C.border}>‹</button>
+          {Array.from({length:rwPages},(_,i)=>i+1).filter(p=>p===1||p===rwPages||Math.abs(p-rwPage)<=1).reduce((acc,p,idx,arr)=>{if(idx>0&&p-arr[idx-1]>1)acc.push("…");acc.push(p);return acc;},[]).map((p,idx)=>
+            typeof p==="string"
+              ?<span key={idx} style={{fontFamily:F.mono,fontSize:9,color:C.textMute,padding:"0 2px"}}>…</span>
+              :<button key={p} onClick={()=>setRwPage(p)} style={{minWidth:26,padding:"3px 6px",borderRadius:4,border:`1px solid ${p===rwPage?C.green+"55":C.border}`,background:p===rwPage?C.greenDim:"transparent",fontFamily:F.mono,fontSize:9,fontWeight:p===rwPage?700:400,color:p===rwPage?C.green:C.textSub,cursor:"pointer",transition:"all .15s"}}>{p}</button>
+          )}
+          <button onClick={()=>setRwPage(p=>Math.min(rwPages,p+1))} disabled={rwPage===rwPages} style={{padding:"3px 7px",borderRadius:4,border:`1px solid ${rwPage===rwPages?C.borderC:C.border}`,background:"transparent",fontFamily:F.mono,fontSize:9,color:rwPage===rwPages?C.textMute:C.textSub,cursor:rwPage===rwPages?"default":"pointer",transition:"all .15s"}} onMouseEnter={e=>{if(rwPage<rwPages)e.currentTarget.style.borderColor=C.green+"55";}} onMouseLeave={e=>e.currentTarget.style.borderColor=rwPage===rwPages?C.borderC:C.border}>›</button>
+          <button onClick={()=>setRwPage(rwPages)} disabled={rwPage===rwPages} style={{padding:"3px 7px",borderRadius:4,border:`1px solid ${rwPage===rwPages?C.borderC:C.border}`,background:"transparent",fontFamily:F.mono,fontSize:9,color:rwPage===rwPages?C.textMute:C.textSub,cursor:rwPage===rwPages?"default":"pointer",transition:"all .15s"}} onMouseEnter={e=>{if(rwPage<rwPages)e.currentTarget.style.borderColor=C.green+"55";}} onMouseLeave={e=>e.currentTarget.style.borderColor=rwPage===rwPages?C.borderC:C.border}>»</button>
+        </div>
+        <span style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,flexShrink:0}}>Page {rwPage} of {rwPages}</span>
+      </div>
+    </div>
+  );
+}
+
 // ─── LEADERBOARD PAGE ─────────────────────────────────────────────────────────
-const COLS=[{key:"rank",label:"#",w:"52px",align:"center"},{key:"handle",label:"Trader",w:"1.8fr",align:"left"},{key:"totalPos",label:"Trades",w:"72px",align:"right"},{key:"totalBuy",label:"Buy Vol",w:"96px",align:"right"},{key:"winRate",label:"Win Rate",w:"110px",align:"right"},{key:"realizedPnl",label:"P&L",w:"120px",align:"right"},{key:"avgPct",label:"Avg %",w:"72px",align:"right"},{key:"lastActive",label:"Last Seen",w:"88px",align:"right"}];
+const COLS=[
+  {key:"handle",     label:"Trader",      w:"1.6fr",align:"left"},
+  {key:"totalPos",   label:"Trades",      w:"68px", align:"right"},
+  {key:"totalBuy",   label:"Buy Volume",  w:"96px", align:"right"},
+  {key:"totalSell",  label:"Sell Volume", w:"96px", align:"right"},
+  {key:"winRate",    label:"Win Rate",    w:"106px",align:"right"},
+  {key:"realizedPnl",label:"PnL (USD)",   w:"116px",align:"right"},
+  {key:"pnlPct",     label:"ROI %",       w:"72px", align:"right"},
+  {key:"lastActive", label:"Last Active", w:"86px", align:"right"},
+];
+const TRADE_PER_PAGE=10;
 
 function LeaderboardPage({onAnalyze}){
   const [platform,setPlatform]=useState("polymarket");const [time,setTime]=useState("30d");
@@ -446,8 +578,10 @@ function LeaderboardPage({onAnalyze}){
   const avgWR=rows.length?Math.round(rows.reduce((s,r)=>s+r.winRate,0)/rows.length):0;
   const topPnl=rows[0]?.realizedPnl||0;
   const grid=COLS.map(c=>c.w).join(" ");
-  const medals=[C.gold,"#9ca3af","#a07840"];
-  function sort(k){if(sortKey===k)setSortDir(d=>d==="desc"?"asc":"desc");else{setSortKey(k);setSortDir("desc");}}
+  const [tradePage,setTradePage]=useState(1);
+  const tradePages=Math.max(1,Math.ceil(rows.length/TRADE_PER_PAGE));
+  const pagedRows=rows.slice((tradePage-1)*TRADE_PER_PAGE,tradePage*TRADE_PER_PAGE);
+  function sort(k){if(sortKey===k)setSortDir(d=>d==="desc"?"asc":"desc");else{setSortKey(k);setSortDir("desc");setTradePage(1);}}
   return(
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{padding:"18px 28px 0",flexShrink:0,borderBottom:`1px solid ${C.border}`,background:`linear-gradient(180deg,${C.bgCardB} 0%,${C.bg} 100%)`}}>
@@ -489,16 +623,13 @@ function LeaderboardPage({onAnalyze}){
               {COLS.map(col=>{const active=sortKey===col.key;return(<div key={col.key} onClick={()=>sort(col.key)} style={{display:"flex",alignItems:"center",gap:3,cursor:"pointer",justifyContent:col.align==="right"?"flex-end":col.align==="center"?"center":"flex-start",color:active?C.goldB:C.textDim,userSelect:"none",transition:"color .12s"}} onMouseEnter={e=>{if(!active)e.currentTarget.style.color=C.textSub;}} onMouseLeave={e=>{if(!active)e.currentTarget.style.color=C.textDim;}}><span style={{fontFamily:F.mono,fontSize:7.5,letterSpacing:1,textTransform:"uppercase"}}>{col.label}</span><span style={{fontSize:8}}>{active?(sortDir==="desc"?"↓":"↑"):"↕"}</span></div>);})}
             </div>
             <div style={{overflowY:"auto",flex:1}}>
-              {rows.map((row,i)=>{
-                const top3=row.rank<=3,pos=row.realizedPnl>=0;
+              {pagedRows.map((row,i)=>{
                 const rp=LB_PLATFORMS.find(p=>p.id===row.platform)||plat;
                 const lag=row.lastActive===1?"Today":row.lastActive<=7?`${row.lastActive}d ago`:row.lastActive<=30?`${Math.round(row.lastActive/7)}w ago`:`${Math.round(row.lastActive/30)}mo`;
                 const lagC=row.lastActive<=1?C.green:row.lastActive<=3?C.goldB:C.textDim;
                 const isH=hov===i;
-                return(<div key={i} onClick={()=>onAnalyze&&onAnalyze(row.address)} onMouseEnter={()=>setHov(i)} onMouseLeave={()=>setHov(null)} style={{display:"grid",gridTemplateColumns:grid,padding:"0 18px",gap:8,height:52,alignItems:"center",borderBottom:`1px solid ${C.border}08`,background:isH?`${rp?.color||C.gold}07`:top3?`${[C.gold+"04","rgba(150,150,150,0.02)","rgba(120,90,40,0.025)"][row.rank-1]}`:"transparent",cursor:"pointer",borderLeft:top3?`2px solid ${medals[row.rank-1]}`:"2px solid transparent",transition:"background .1s"}}>
-                  <div style={{display:"flex",justifyContent:"center"}}>{top3?<div style={{width:22,height:22,borderRadius:"50%",background:medals[row.rank-1],fontSize:11,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 0 10px ${medals[row.rank-1]}55`}}>{["🥇","🥈","🥉"][row.rank-1]}</div>:<span style={{fontFamily:F.mono,fontSize:10,color:row.rank<=10?C.textSub:C.textDim,fontWeight:600}}>{row.rank}</span>}</div>
+                return(<div key={i} onClick={()=>onAnalyze&&onAnalyze(row.address)} onMouseEnter={()=>setHov(i)} onMouseLeave={()=>setHov(null)} style={{display:"grid",gridTemplateColumns:grid,padding:"0 18px",gap:8,height:52,alignItems:"center",borderBottom:`1px solid ${C.border}08`,background:isH?`${rp?.color||C.gold}07`:"transparent",cursor:"pointer",transition:"background .1s"}}>
                   <div style={{display:"flex",alignItems:"center",gap:9,minWidth:0}}>
-                    <div style={{width:28,height:28,borderRadius:7,flexShrink:0,background:`${rp?.color||C.gold}14`,border:`1px solid ${rp?.color||C.gold}28`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:F.display,fontWeight:800,fontSize:11,color:rp?.color||C.gold}}>{row.handle[1]?.toUpperCase()}</div>
                     <div style={{minWidth:0}}>
                       <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}><span style={{fontFamily:F.body,fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{row.handle}</span>{rp&&<Tag label={rp.label.slice(0,4).toUpperCase()} color={rp.color}/>}</div>
                       <span style={{fontFamily:F.mono,fontSize:7.5,color:C.textMute,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{row.address}</span>
@@ -506,40 +637,32 @@ function LeaderboardPage({onAnalyze}){
                   </div>
                   <div style={{textAlign:"right"}}><span style={{fontFamily:F.mono,fontSize:11,color:C.textSub,fontWeight:600}}>{row.totalPos}</span></div>
                   <div style={{textAlign:"right"}}><span style={{fontFamily:F.mono,fontSize:11,color:C.textSub}}>{fu(row.totalBuy)}</span></div>
+                  <div style={{textAlign:"right"}}><span style={{fontFamily:F.mono,fontSize:11,color:C.textSub}}>{fu(row.totalSell)}</span></div>
                   <div style={{display:"flex",justifyContent:"flex-end"}}><WinBar val={row.winRate}/></div>
                   <div style={{textAlign:"right"}}><Pnl val={row.realizedPnl} pct={fp(row.pnlPct)}/></div>
-                  <div style={{textAlign:"right"}}><span style={{fontFamily:F.mono,fontSize:10,color:row.avgPct>=0?C.green:C.red,fontWeight:600}}>{fp(row.avgPct)}</span></div>
+                  <div style={{textAlign:"right"}}><span style={{fontFamily:F.mono,fontSize:10,color:row.pnlPct>=0?C.green:C.red,fontWeight:700}}>{fp(row.pnlPct)}</span></div>
                   <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:7}}><span style={{fontFamily:F.mono,fontSize:8.5,color:lagC,fontWeight:row.lastActive<=1?700:400}}>{lag}</span><div style={{width:20,height:20,borderRadius:4,flexShrink:0,background:isH?C.goldDim:C.bgCardC,border:`1px solid ${isH?C.gold+"40":C.border}`,display:"flex",alignItems:"center",justifyContent:"center",color:isH?C.goldB:C.textDim,fontSize:9,transition:"all .15s"}}>↗</div></div>
                 </div>);
               })}
             </div>
-            <div style={{flexShrink:0,borderTop:`1px solid ${C.border}`,padding:"7px 18px",display:"flex",justifyContent:"space-between",background:C.bgCardB}}><span style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim}}>{rows.length} traders · P&L ≥ +50% · {time} window</span><span style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim}}>Click column to sort · Click row to open profile</span></div>
-          </div>
-        )}
-        {view==="REWARDS"&&(
-          <div style={{height:"100%",display:"flex",flexDirection:"column",background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:"0 10px 10px 10px",overflow:"hidden"}}>
-            <div style={{padding:"11px 18px",borderBottom:`1px solid ${C.border}`,background:C.bgCardB,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between"}}><span style={{fontFamily:F.mono,fontSize:8,color:C.textDim,letterSpacing:2,textTransform:"uppercase"}}>Top LP Providers — All Platforms</span><Tag label="TRC Rewards" color={C.green}/></div>
-            <div style={{flex:1,overflowY:"auto"}}>
-              {REWARDS_LB.map((r,i)=>(
-                <div key={i} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 18px",borderBottom:i<REWARDS_LB.length-1?`1px solid ${C.border}10`:"none",cursor:"pointer",transition:"background .12s"}} onMouseEnter={e=>e.currentTarget.style.background=`${r.color}07`} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                  <div style={{width:36,flexShrink:0,display:"flex",justifyContent:"center"}}>{i<3?<div style={{width:26,height:26,borderRadius:"50%",background:medals[i],display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,boxShadow:`0 0 12px ${medals[i]}60`}}>{["🥇","🥈","🥉"][i]}</div>:<span style={{fontFamily:F.mono,fontSize:11,color:C.textDim,fontWeight:600,textAlign:"center",width:36,display:"block"}}>#{i+1}</span>}</div>
-                  <div style={{width:40,height:40,borderRadius:10,flexShrink:0,background:`${r.color}12`,border:`1px solid ${r.color}28`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:F.mono,fontWeight:700,fontSize:8.5,color:r.color,letterSpacing:0.5}}>LP</div>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}><span style={{fontFamily:F.mono,fontSize:11,fontWeight:700,color:r.color}}>{r.id}</span><Tag label={r.platform} color={r.color}/></div>
-                    <div style={{fontFamily:F.mono,fontSize:8.5,color:C.textDim}}>{r.markets} markets · {r.pts.toLocaleString()} pts · {r.lpVol} LP vol</div>
-                  </div>
-                  <div style={{textAlign:"right",flexShrink:0,minWidth:90}}><div style={{fontFamily:F.mono,fontSize:8,color:C.textDim,marginBottom:4}}>WIN RATE</div><WinBar val={r.winRate}/></div>
-                  <div style={{textAlign:"right",flexShrink:0,minWidth:110}}>
-                    <div style={{display:"flex",alignItems:"baseline",gap:4,justifyContent:"flex-end",marginBottom:3}}><span style={{fontFamily:F.display,fontWeight:800,fontSize:16,color:C.green,textShadow:`0 0 14px ${C.green}45`}}>{r.rewards.toLocaleString()}</span><span style={{fontFamily:F.mono,fontSize:8.5,color:C.goldB,fontWeight:700}}>TRC</span></div>
-                    <span style={{fontFamily:F.mono,fontSize:9,color:C.green,fontWeight:700}}>{r.pnl}</span>
-                  </div>
-                  <div style={{width:24,height:24,borderRadius:5,flexShrink:0,background:i===0?C.gold:C.bgCardC,border:`1px solid ${i===0?C.gold:C.border}`,display:"flex",alignItems:"center",justifyContent:"center",color:i===0?"#0e0900":C.textDim,fontSize:9,fontWeight:700}}>↗</div>
-                </div>
-              ))}
+            <div style={{flexShrink:0,borderTop:`1px solid ${C.border}`,padding:"6px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",background:C.bgCardB,gap:12}}>
+              <span style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,flexShrink:0}}>{rows.length} traders · {time} window</span>
+              <div style={{display:"flex",alignItems:"center",gap:4}}>
+                <button onClick={()=>setTradePage(1)} disabled={tradePage===1} style={{padding:"3px 7px",borderRadius:4,border:`1px solid ${tradePage===1?C.borderC:C.border}`,background:"transparent",fontFamily:F.mono,fontSize:9,color:tradePage===1?C.textMute:C.textSub,cursor:tradePage===1?"default":"pointer",transition:"all .15s"}} onMouseEnter={e=>{if(tradePage>1)e.currentTarget.style.borderColor=C.gold+"55";}} onMouseLeave={e=>e.currentTarget.style.borderColor=tradePage===1?C.borderC:C.border}>«</button>
+                <button onClick={()=>setTradePage(p=>Math.max(1,p-1))} disabled={tradePage===1} style={{padding:"3px 7px",borderRadius:4,border:`1px solid ${tradePage===1?C.borderC:C.border}`,background:"transparent",fontFamily:F.mono,fontSize:9,color:tradePage===1?C.textMute:C.textSub,cursor:tradePage===1?"default":"pointer",transition:"all .15s"}} onMouseEnter={e=>{if(tradePage>1)e.currentTarget.style.borderColor=C.gold+"55";}} onMouseLeave={e=>e.currentTarget.style.borderColor=tradePage===1?C.borderC:C.border}>‹</button>
+                {Array.from({length:tradePages},(_,i)=>i+1).filter(p=>p===1||p===tradePages||Math.abs(p-tradePage)<=1).reduce((acc,p,idx,arr)=>{if(idx>0&&p-arr[idx-1]>1)acc.push("…");acc.push(p);return acc;},[]).map((p,idx)=>
+                  typeof p==="string"
+                    ?<span key={idx} style={{fontFamily:F.mono,fontSize:9,color:C.textMute,padding:"0 2px"}}>…</span>
+                    :<button key={p} onClick={()=>setTradePage(p)} style={{minWidth:26,padding:"3px 6px",borderRadius:4,border:`1px solid ${p===tradePage?C.gold+"55":C.border}`,background:p===tradePage?C.goldDim:"transparent",fontFamily:F.mono,fontSize:9,fontWeight:p===tradePage?700:400,color:p===tradePage?C.goldB:C.textSub,cursor:"pointer",transition:"all .15s"}}>{p}</button>
+                )}
+                <button onClick={()=>setTradePage(p=>Math.min(tradePages,p+1))} disabled={tradePage===tradePages} style={{padding:"3px 7px",borderRadius:4,border:`1px solid ${tradePage===tradePages?C.borderC:C.border}`,background:"transparent",fontFamily:F.mono,fontSize:9,color:tradePage===tradePages?C.textMute:C.textSub,cursor:tradePage===tradePages?"default":"pointer",transition:"all .15s"}} onMouseEnter={e=>{if(tradePage<tradePages)e.currentTarget.style.borderColor=C.gold+"55";}} onMouseLeave={e=>e.currentTarget.style.borderColor=tradePage===tradePages?C.borderC:C.border}>›</button>
+                <button onClick={()=>setTradePage(tradePages)} disabled={tradePage===tradePages} style={{padding:"3px 7px",borderRadius:4,border:`1px solid ${tradePage===tradePages?C.borderC:C.border}`,background:"transparent",fontFamily:F.mono,fontSize:9,color:tradePage===tradePages?C.textMute:C.textSub,cursor:tradePage===tradePages?"default":"pointer",transition:"all .15s"}} onMouseEnter={e=>{if(tradePage<tradePages)e.currentTarget.style.borderColor=C.gold+"55";}} onMouseLeave={e=>e.currentTarget.style.borderColor=tradePage===tradePages?C.borderC:C.border}>»</button>
+              </div>
+              <span style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,flexShrink:0}}>Page {tradePage} of {tradePages}</span>
             </div>
-            <div style={{flexShrink:0,borderTop:`1px solid ${C.border}`,padding:"7px 18px",background:C.bgCardB}}><span style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim}}>Ranked by TRC rewards earned · all-time</span></div>
           </div>
         )}
+        {view==="REWARDS"&&<RewardsTable/>}
       </div>
     </div>
   );
@@ -682,88 +805,182 @@ function TokenFlowTab({wallet}){
 }
 
 // ─── ACTIVITY TAB ─────────────────────────────────────────────────────────────
+const ACT_PER_PAGE=10;
 function ActivityTab({wallet}){
   const [filter,setFilter]=useState("ALL");
+  const [actPage,setActPage]=useState(1);
   const rows=buildActivity(wallet.address);
-  const visible=filter==="ALL"?rows:rows.filter(r=>r.type===filter);
-  const counts={ALL:rows.length};
-  ["BUY","SELL","RECEIVE","SEND"].forEach(f=>{counts[f]=rows.filter(r=>r.type===f).length;});
+  const AMAP={
+    BUY:      {c:C.green, bg:C.greenDim },
+    SELL:     {c:C.red,   bg:C.redDim   },
+    RECEIVE:  {c:C.blue,  bg:C.blueDim  },
+    SEND:     {c:C.gold,  bg:C.goldDim  },
+    LP_ADD:   {c:C.purple,bg:C.purpleDim},
+    LP_REMOVE:{c:C.red,   bg:C.redDim   },
+    LP_CLAIM: {c:C.green, bg:C.greenDim },
+  };
+  const isLPType=t=>t==="LP_ADD"||t==="LP_REMOVE"||t==="LP_CLAIM";
+  const visible=filter==="ALL"?rows
+    :filter==="LP"?rows.filter(r=>isLPType(r.type))
+    :rows.filter(r=>r.type===filter);
+  const counts={
+    ALL:rows.length,
+    BUY:rows.filter(r=>r.type==="BUY").length,
+    SELL:rows.filter(r=>r.type==="SELL").length,
+    RECEIVE:rows.filter(r=>r.type==="RECEIVE").length,
+    SEND:rows.filter(r=>r.type==="SEND").length,
+    LP:rows.filter(r=>isLPType(r.type)).length,
+  };
+  const actPages=Math.max(1,Math.ceil(visible.length/ACT_PER_PAGE));
+  const pagedAct=visible.slice((actPage-1)*ACT_PER_PAGE,actPage*ACT_PER_PAGE);
   const totalVol=visible.reduce((s,r)=>s+r.value,0);
-  const sellRows=visible.filter(r=>r.pnl);
+  const sellRows=visible.filter(r=>r.pnl&&!r.isLP);
   const netPnl=sellRows.reduce((s,r)=>{const v=parseInt(r.pnl.replace(/[^0-9]/g,""));return s+(r.pnlPos?v:-v);},0);
   const netPct=sellRows.length?Math.round(sellRows.reduce((s,r)=>s+(r.pnlPct||0),0)/sellRows.length):0;
   const transfers=visible.filter(r=>r.type==="RECEIVE"||r.type==="SEND").length;
-  const AMAP={BUY:{c:C.green,bg:C.greenDim},SELL:{c:C.red,bg:C.redDim},RECEIVE:{c:C.blue,bg:C.blueDim},SEND:{c:C.gold,bg:C.goldDim}};
+  const ACT_COLS="82px 1fr 120px 80px 64px 80px 88px 48px";
+  const ACT_HDRS=["TYPE","MARKET / LP POOL","COUNTERPARTY","LP VOL / QTY","PRICE","VALUE","PNL / REWARD","AGO"];
   return(
     <div style={{flex:1,display:"flex",flexDirection:"column",background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden",minHeight:0}}>
+      {/* Header bar */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 18px",borderBottom:`1px solid ${C.border}`,flexShrink:0,background:C.bgCardB}}>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <span style={{fontFamily:F.mono,fontSize:9,color:C.textSub,letterSpacing:1.5}}>ACTIVITY</span>
           <span style={{background:C.bgCardC,border:`1px solid ${C.border}`,borderRadius:10,padding:"1px 7px",fontFamily:F.mono,fontSize:8.5,color:C.textSub}}>{rows.length}</span>
         </div>
-        <div style={{display:"flex",gap:4}}>
-          {["ALL","BUY","SELL","RECEIVE","SEND"].map(f=>{
-            const active=filter===f,m=f!=="ALL"?AMAP[f]:null;
-            return(<button key={f} onClick={()=>setFilter(f)} style={{background:active?(m?m.bg:"rgba(255,255,255,0.06)"):"transparent",border:`1px solid ${active?(m?m.c+"50":C.borderB):C.border}`,borderRadius:5,padding:"4px 10px",cursor:"pointer",fontFamily:F.mono,fontSize:8.5,letterSpacing:0.8,color:active?(m?m.c:C.text):C.textDim,transition:"all .12s"}}>
-              {f} <span style={{opacity:0.5}}>({counts[f]})</span>
+        <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+          {[
+            {key:"ALL",   label:"ALL",    col:null},
+            {key:"BUY",   label:"BUY",    col:C.green},
+            {key:"SELL",  label:"SELL",   col:C.red},
+            {key:"RECEIVE",label:"RECV",  col:C.blue},
+            {key:"SEND",  label:"SEND",   col:C.gold},
+            {key:"LP",    label:"LP",     col:C.purple},
+          ].map(({key,label,col})=>{
+            const active=filter===key;
+            const bg=col?AMAP[key==="LP"?"LP_ADD":key]?.bg:"rgba(255,255,255,0.06)";
+            return(<button key={key} onClick={()=>{setFilter(key);setActPage(1);}} style={{background:active?(bg||"rgba(255,255,255,0.06)"):"transparent",border:`1px solid ${active?(col?col+"50":C.borderB):C.border}`,borderRadius:5,padding:"4px 10px",cursor:"pointer",fontFamily:F.mono,fontSize:8.5,letterSpacing:0.8,color:active?(col||C.text):C.textDim,transition:"all .12s"}}>
+              {label} <span style={{opacity:0.5}}>({counts[key]})</span>
             </button>);
           })}
         </div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"70px 26px 1fr 120px 72px 64px 80px 80px 48px",padding:"5px 18px",gap:8,flexShrink:0,borderBottom:`1px solid ${C.border}`}}>
-        {["TYPE","#","OUTCOME TOKEN","COUNTERPARTY","QTY","PRICE","VALUE","PNL","AGO"].map(h=><span key={h} style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,letterSpacing:1.2,textTransform:"uppercase"}}>{h}</span>)}
+      {/* Column headers */}
+      <div style={{display:"grid",gridTemplateColumns:ACT_COLS,padding:"5px 18px",gap:8,flexShrink:0,borderBottom:`1px solid ${C.border}`,background:C.bgCardB}}>
+        {ACT_HDRS.map(h=><span key={h} style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,letterSpacing:1.2,textTransform:"uppercase"}}>{h}</span>)}
       </div>
+      {/* Rows */}
       <div style={{overflowY:"auto",flex:1}}>
-        {visible.map((row,i)=>{
-          const isT=row.type==="RECEIVE"||row.type==="SEND",am=AMAP[row.type],ec=ECO_COLOR[row.tok.market]||C.textDim;
-          return(<div key={i} style={{display:"grid",gridTemplateColumns:"70px 26px 1fr 120px 72px 64px 80px 80px 48px",padding:"8px 18px",gap:8,alignItems:"center",borderBottom:`1px solid ${C.border}10`,transition:"background .1s"}} onMouseEnter={e=>e.currentTarget.style.background=`${am.c}05`} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+        {pagedAct.map((row,i)=>{
+          const am=AMAP[row.type]||AMAP.BUY;
+          const isT=row.type==="RECEIVE"||row.type==="SEND";
+          const isLP=row.isLP;
+          const ec=ECO_COLOR[row.tok.market]||C.textDim;
+          return(<div key={i} style={{display:"grid",gridTemplateColumns:ACT_COLS,padding:"9px 18px",gap:8,alignItems:"center",borderBottom:`1px solid ${C.border}10`,transition:"background .1s",borderLeft:isLP?`2px solid ${C.purple}40`:"2px solid transparent"}} onMouseEnter={e=>e.currentTarget.style.background=`${am.c}05`} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+            {/* TYPE */}
             <TypeChip type={row.type}/>
-            <span style={{fontFamily:F.mono,fontSize:8.5,color:C.textDim}}>{String(i+1).padStart(2,"0")}</span>
+            {/* MARKET / LP POOL */}
             <div style={{minWidth:0}}>
-              <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:2}}>
-                <span style={{fontFamily:F.mono,fontSize:8.5,fontWeight:700,color:row.tok.side==="YES"?C.green:C.red,background:row.tok.side==="YES"?C.greenDim:C.redDim,border:`1px solid ${row.tok.side==="YES"?C.green+"40":C.red+"40"}`,borderRadius:3,padding:"1px 5px"}}>{row.tok.side}</span>
-                <span style={{fontFamily:F.body,fontSize:11,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{row.tok.name}</span>
-              </div>
-              <div style={{display:"flex",alignItems:"center",gap:5}}>
-                <span style={{width:4,height:4,borderRadius:"50%",background:ec,flexShrink:0}}/>
-                <span style={{fontFamily:F.mono,fontSize:8.5,color:C.textDim}}>{row.tok.market}</span>
-                <span style={{fontFamily:F.mono,fontSize:8.5,color:C.textMute}}>· {row.hash}</span>
-              </div>
+              {isLP?(
+                <div>
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
+                    <span style={{fontFamily:F.mono,fontSize:8,fontWeight:700,color:C.purple,background:C.purpleDim,border:`1px solid ${C.purple}30`,borderRadius:3,padding:"1px 5px",flexShrink:0}}>LP POOL</span>
+                    <span style={{fontFamily:F.body,fontSize:11,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{row.tok.name}</span>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:5}}>
+                    <span style={{width:4,height:4,borderRadius:"50%",background:ec,flexShrink:0}}/>
+                    <span style={{fontFamily:F.mono,fontSize:8.5,color:C.textDim}}>{row.tok.market}</span>
+                    <span style={{fontFamily:F.mono,fontSize:8.5,color:C.textMute}}>· {row.hash}</span>
+                  </div>
+                </div>
+              ):(
+                <div>
+                  <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:2}}>
+                    <span style={{fontFamily:F.mono,fontSize:8.5,fontWeight:700,color:row.tok.side==="YES"?C.green:C.red,background:row.tok.side==="YES"?C.greenDim:C.redDim,border:`1px solid ${row.tok.side==="YES"?C.green+"40":C.red+"40"}`,borderRadius:3,padding:"1px 5px",flexShrink:0}}>{row.tok.side}</span>
+                    <span style={{fontFamily:F.body,fontSize:11,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{row.tok.name}</span>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:5}}>
+                    <span style={{width:4,height:4,borderRadius:"50%",background:ec,flexShrink:0}}/>
+                    <span style={{fontFamily:F.mono,fontSize:8.5,color:C.textDim}}>{row.tok.market}</span>
+                    <span style={{fontFamily:F.mono,fontSize:8.5,color:C.textMute}}>· {row.hash}</span>
+                  </div>
+                </div>
+              )}
             </div>
+            {/* COUNTERPARTY */}
             <div style={{minWidth:0}}>
-              {isT?(<><div style={{fontFamily:F.mono,fontSize:8,color:C.textDim,marginBottom:1}}>{row.type==="RECEIVE"?"FROM":"TO"}</div><div style={{fontFamily:F.mono,fontSize:9.5,color:am.c,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{row.peer}</div></>):<span style={{fontFamily:F.mono,fontSize:11,color:C.textMute}}>—</span>}
+              {isT?(<><div style={{fontFamily:F.mono,fontSize:8,color:C.textDim,marginBottom:1}}>{row.type==="RECEIVE"?"FROM":"TO"}</div><div style={{fontFamily:F.mono,fontSize:9.5,color:am.c,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{row.peer}</div></>)
+              :isLP?<span style={{fontFamily:F.mono,fontSize:9,color:C.purple,background:C.purpleDim,border:`1px solid ${C.purple}28`,borderRadius:3,padding:"2px 6px"}}>POOL CONTRACT</span>
+              :<span style={{fontFamily:F.mono,fontSize:11,color:C.textMute}}>—</span>}
             </div>
-            <span style={{fontFamily:F.mono,fontSize:10.5,color:C.textSub}}>{row.qty.toLocaleString()}</span>
-            <span style={{fontFamily:F.mono,fontSize:10.5,color:C.textSub}}>${row.price}</span>
+            {/* LP VOL / QTY */}
+            <div style={{textAlign:"right"}}>
+              {isLP?(
+                <div>
+                  <div style={{fontFamily:F.mono,fontSize:10,fontWeight:600,color:C.purple}}>${row.qty.toLocaleString()}</div>
+                  <div style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,marginTop:1}}>LP VOL</div>
+                </div>
+              ):<span style={{fontFamily:F.mono,fontSize:10.5,color:C.textSub}}>{row.qty.toLocaleString()}</span>}
+            </div>
+            {/* PRICE */}
+            <span style={{fontFamily:F.mono,fontSize:10.5,color:isLP?C.textMute:C.textSub}}>{isLP?"—":("$"+row.price)}</span>
+            {/* VALUE */}
             <span style={{fontFamily:F.mono,fontSize:10.5,color:C.text,fontWeight:600}}>${row.value.toLocaleString()}</span>
-            <div style={{fontFamily:F.mono,fontSize:10.5,fontWeight:700,color:row.pnl?(row.pnlPos?C.green:C.red):C.textDim,whiteSpace:"nowrap"}}>
-              {row.pnl?<span>{row.pnl} <span style={{fontSize:8,color:`${row.pnlPos?C.green:C.red}bb`,fontWeight:600}}>({row.pnlPct>0?"+":""}{row.pnlPct}%)</span></span>:(isT?<span style={{fontSize:8.5,opacity:0.5}}>TRANSFER</span>:"—")}
+            {/* PNL / REWARD */}
+            <div style={{fontFamily:F.mono,fontSize:10.5,fontWeight:700,whiteSpace:"nowrap"}}>
+              {isLP&&row.type==="LP_CLAIM"&&row.lpFee?(
+                <div>
+                  <div style={{color:C.green,textShadow:`0 0 8px ${C.green}40`}}>+${row.lpFee.toFixed(2)}</div>
+                  <div style={{fontFamily:F.mono,fontSize:7.5,color:`${C.green}88`,marginTop:1}}>(+{row.lpRoi}% ROI)</div>
+                </div>
+              ):isLP?(
+                <span style={{color:C.textDim,fontSize:9}}>
+                  {row.type==="LP_ADD"?"DEPOSITED":"WITHDRAWN"}
+                </span>
+              ):row.pnl?(
+                <span style={{color:row.pnlPos?C.green:C.red}}>{row.pnl} <span style={{fontSize:8,color:`${row.pnlPos?C.green:C.red}bb`,fontWeight:600}}>({row.pnlPct>0?"+":""}{row.pnlPct}%)</span></span>
+              ):(isT?<span style={{fontSize:8.5,color:C.textDim,opacity:0.5}}>TRANSFER</span>:"—")}
             </div>
-            <span style={{fontFamily:F.mono,fontSize:8.5,color:C.textDim}}>{row.minsAgo<60?`${row.minsAgo}m`:`${Math.floor(row.minsAgo/60)}h`}</span>
+            {/* AGO */}
+            <span style={{fontFamily:F.mono,fontSize:8.5,color:C.textDim,textAlign:"right"}}>{row.minsAgo<60?`${row.minsAgo}m`:`${Math.floor(row.minsAgo/60)}h`}</span>
           </div>);
         })}
       </div>
-      <div style={{display:"flex",borderTop:`1px solid ${C.border}`,padding:"10px 18px",flexShrink:0,background:C.bgCardB}}>
-        {[{label:"TOTAL VOLUME",val:"$"+totalVol.toLocaleString()},{label:"TRANSFERS",val:transfers+" events"},{label:"NET PNL",isP:true,pnl:netPnl,pct:netPct},{label:"WIN RATE",val:wallet.winRate+"%"}].map((s,i)=>(
-          <div key={i} style={{flex:1,borderRight:i<3?`1px solid ${C.border}`:"none",paddingRight:16,marginRight:16}}>
-            <div style={{fontFamily:F.mono,fontSize:8,color:C.textDim,letterSpacing:1,marginBottom:4}}>{s.label}</div>
-            {s.isP?<Pnl val={s.pnl} pct={fp(s.pct)} size={13}/>:<div style={{fontFamily:F.mono,fontSize:13,fontWeight:700,color:C.text}}>{s.val}</div>}
-          </div>
-        ))}
+      {/* Pagination footer */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",borderTop:`1px solid ${C.border}`,padding:"6px 18px",flexShrink:0,background:C.bgCardB,gap:12}}>
+        <span style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,flexShrink:0}}>{visible.length} events · vol ${totalVol.toLocaleString()}</span>
+        <div style={{display:"flex",alignItems:"center",gap:4}}>
+          <button onClick={()=>setActPage(1)} disabled={actPage===1} style={{padding:"3px 7px",borderRadius:4,border:`1px solid ${actPage===1?C.borderC:C.border}`,background:"transparent",fontFamily:F.mono,fontSize:9,color:actPage===1?C.textMute:C.textSub,cursor:actPage===1?"default":"pointer",transition:"all .15s"}} onMouseEnter={e=>{if(actPage>1)e.currentTarget.style.borderColor=C.gold+"55";}} onMouseLeave={e=>e.currentTarget.style.borderColor=actPage===1?C.borderC:C.border}>«</button>
+          <button onClick={()=>setActPage(p=>Math.max(1,p-1))} disabled={actPage===1} style={{padding:"3px 7px",borderRadius:4,border:`1px solid ${actPage===1?C.borderC:C.border}`,background:"transparent",fontFamily:F.mono,fontSize:9,color:actPage===1?C.textMute:C.textSub,cursor:actPage===1?"default":"pointer",transition:"all .15s"}} onMouseEnter={e=>{if(actPage>1)e.currentTarget.style.borderColor=C.gold+"55";}} onMouseLeave={e=>e.currentTarget.style.borderColor=actPage===1?C.borderC:C.border}>‹</button>
+          {Array.from({length:actPages},(_,i)=>i+1).filter(p=>p===1||p===actPages||Math.abs(p-actPage)<=1).reduce((acc,p,idx,arr)=>{if(idx>0&&p-arr[idx-1]>1)acc.push("…");acc.push(p);return acc;},[]).map((p,idx)=>
+            typeof p==="string"
+              ?<span key={idx} style={{fontFamily:F.mono,fontSize:9,color:C.textMute,padding:"0 2px"}}>…</span>
+              :<button key={p} onClick={()=>setActPage(p)} style={{minWidth:26,padding:"3px 6px",borderRadius:4,border:`1px solid ${p===actPage?C.gold+"55":C.border}`,background:p===actPage?C.goldDim:"transparent",fontFamily:F.mono,fontSize:9,fontWeight:p===actPage?700:400,color:p===actPage?C.goldB:C.textSub,cursor:"pointer",transition:"all .15s"}}>{p}</button>
+          )}
+          <button onClick={()=>setActPage(p=>Math.min(actPages,p+1))} disabled={actPage===actPages} style={{padding:"3px 7px",borderRadius:4,border:`1px solid ${actPage===actPages?C.borderC:C.border}`,background:"transparent",fontFamily:F.mono,fontSize:9,color:actPage===actPages?C.textMute:C.textSub,cursor:actPage===actPages?"default":"pointer",transition:"all .15s"}} onMouseEnter={e=>{if(actPage<actPages)e.currentTarget.style.borderColor=C.gold+"55";}} onMouseLeave={e=>e.currentTarget.style.borderColor=actPage===actPages?C.borderC:C.border}>›</button>
+          <button onClick={()=>setActPage(actPages)} disabled={actPage===actPages} style={{padding:"3px 7px",borderRadius:4,border:`1px solid ${actPage===actPages?C.borderC:C.border}`,background:"transparent",fontFamily:F.mono,fontSize:9,color:actPage===actPages?C.textMute:C.textSub,cursor:actPage===actPages?"default":"pointer",transition:"all .15s"}} onMouseEnter={e=>{if(actPage<actPages)e.currentTarget.style.borderColor=C.gold+"55";}} onMouseLeave={e=>e.currentTarget.style.borderColor=actPage===actPages?C.borderC:C.border}>»</button>
+        </div>
+        <span style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,flexShrink:0}}>Page {actPage} of {actPages}</span>
       </div>
     </div>
   );
 }
 
 // ─── REWARDS TAB ─────────────────────────────────────────────────────────────
-const RTMETA={"Liquidity reward":{color:C.green,icon:"🎁",short:"LIQ"},"Maker rebate":{color:C.blue,icon:"⚡",short:"REBATE"},"LP fee share":{color:C.purple,icon:"◎",short:"LP FEE"}};
+const RTMETA={"Liquidity reward":{color:C.green,short:"LIQ"},"Maker rebate":{color:C.blue,short:"REBATE"},"LP fee share":{color:C.purple,short:"LP FEE"}};
 const SMETA={CLAIMED:{color:C.green,bg:"rgba(62,191,129,0.09)",border:"rgba(62,191,129,0.28)",icon:"✓"},PENDING:{color:C.goldB,bg:"rgba(218,169,63,0.09)",border:"rgba(218,169,63,0.28)",icon:"◔"},FAILED:{color:C.red,bg:"rgba(217,79,79,0.09)",border:"rgba(217,79,79,0.28)",icon:"✗"}};
+const RWT_COLS="110px 1fr 80px 90px 120px 90px 32px";
+const RWT_HDRS=["STATUS","MARKET","PLATFORM","TYPE","AMOUNT","TIME",""];
+const RWT_PER_PAGE=8;
 
 function RewardsTab({wallet}){
   const [filter,setFilter]=useState("ALL");
+  const [rwTabPage,setRwTabPage]=useState(1);
   const rewards=wallet.rewards||[];
   const types=[...new Set(rewards.map(r=>r.type))];
   const visible=filter==="ALL"?rewards:rewards.filter(r=>r.type===filter);
+  const rwTabPages=Math.max(1,Math.ceil(visible.length/RWT_PER_PAGE));
+  const pagedVisible=visible.slice((rwTabPage-1)*RWT_PER_PAGE,rwTabPage*RWT_PER_PAGE);
   const earned=rewards.filter(r=>r.status==="CLAIMED").reduce((s,r)=>s+r.amount,0);
   const pending=rewards.filter(r=>r.status==="PENDING").reduce((s,r)=>s+r.amount,0);
   return(
@@ -776,55 +993,78 @@ function RewardsTab({wallet}){
         <div style={{display:"flex",gap:4}}>
           {["ALL",...types].map(f=>{
             const active=filter===f,meta=f!=="ALL"?RTMETA[f]:null;
-            return(<button key={f} onClick={()=>setFilter(f)} style={{padding:"3px 10px",borderRadius:5,cursor:"pointer",border:"none",background:active?(meta?`${meta.color}14`:"rgba(255,255,255,0.07)"):"transparent",outline:active?`1px solid ${meta?meta.color+"50":C.borderB}`:`1px solid ${C.border}`,fontFamily:F.mono,fontSize:8.5,letterSpacing:0.5,fontWeight:active?700:400,color:active?(meta?meta.color:C.text):C.textDim,transition:"all .12s"}}>
+            return(<button key={f} onClick={()=>{setFilter(f);setRwTabPage(1);}} style={{padding:"3px 10px",borderRadius:5,cursor:"pointer",border:"none",background:active?(meta?`${meta.color}14`:"rgba(255,255,255,0.07)"):"transparent",outline:active?`1px solid ${meta?meta.color+"50":C.borderB}`:`1px solid ${C.border}`,fontFamily:F.mono,fontSize:8.5,letterSpacing:0.5,fontWeight:active?700:400,color:active?(meta?meta.color:C.text):C.textDim,transition:"all .12s"}}>
               {f==="ALL"?"ALL":RTMETA[f]?.short||f} <span style={{opacity:0.55}}>({f==="ALL"?rewards.length:rewards.filter(r=>r.type===f).length})</span>
             </button>);
           })}
         </div>
       </div>
-      <div style={{flexShrink:0,display:"grid",gridTemplateColumns:"110px 26px 1fr 80px 90px 80px 90px 32px",padding:"5px 18px",gap:10,alignItems:"center",borderBottom:`1px solid ${C.border}`,background:C.bgCardB}}>
-        {["STATUS","","MARKET","PLATFORM","TYPE","AMOUNT","TIME",""].map((h,i)=><span key={i} style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,letterSpacing:1.2,textTransform:"uppercase"}}>{h}</span>)}
+      {/* Column headers */}
+      <div style={{flexShrink:0,display:"grid",gridTemplateColumns:RWT_COLS,padding:"5px 18px",gap:10,alignItems:"center",borderBottom:`1px solid ${C.border}`,background:C.bgCardB}}>
+        {RWT_HDRS.map((h,i)=><span key={i} style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,letterSpacing:1.2,textTransform:"uppercase",textAlign:h==="AMOUNT"||h==="TIME"?"right":"left"}}>{h}</span>)}
       </div>
       <div style={{overflowY:"auto",flex:1}}>
-        {visible.map((row,i)=>{
+        {pagedVisible.map((row,i)=>{
           const sm=SMETA[row.status]||SMETA.CLAIMED,tm=RTMETA[row.type]||RTMETA["Liquidity reward"];
           const ec=ECO_COLOR[row.eco]||C.textDim,el=ECOSYSTEMS.find(e=>e.id===row.eco)?.label||row.eco;
-          return(<div key={i} style={{display:"grid",gridTemplateColumns:"110px 26px 1fr 80px 90px 80px 90px 32px",padding:"0 18px",gap:10,alignItems:"center",height:52,borderBottom:`1px solid ${C.border}10`,transition:"background .1s"}} onMouseEnter={e=>e.currentTarget.style.background=`${sm.color}05`} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+          const roiPct=Math.round(row.amount*Math.round(row.amount%3===0?8:row.amount%2===0?12:6)+40);
+          return(<div key={i} style={{display:"grid",gridTemplateColumns:RWT_COLS,padding:"0 18px",gap:10,alignItems:"center",height:54,borderBottom:`1px solid ${C.border}10`,transition:"background .1s"}} onMouseEnter={e=>e.currentTarget.style.background=`${sm.color}05`} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+            {/* STATUS */}
             <span style={{display:"inline-flex",alignItems:"center",gap:5,fontFamily:F.mono,fontSize:9.5,fontWeight:700,color:sm.color,background:sm.bg,border:`1px solid ${sm.border}`,borderRadius:5,padding:"3px 9px"}}><span style={{fontSize:11}}>{sm.icon}</span>{row.status}</span>
-            <div style={{width:26,height:26,borderRadius:6,flexShrink:0,background:`${tm.color}18`,border:`1px solid ${tm.color}30`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12}}>{tm.icon}</div>
+            {/* MARKET */}
             <div style={{minWidth:0}}>
               <div style={{fontFamily:F.body,fontSize:12,fontWeight:500,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:2}}>{row.market}</div>
               <div style={{display:"flex",alignItems:"center",gap:5}}><span style={{fontFamily:F.mono,fontSize:8.5,color:C.textDim}}>{row.marketId}</span><span style={{color:C.textMute,fontSize:8}}>·</span><span style={{fontFamily:F.mono,fontSize:8.5,color:C.textDim}}>{row.txHash}</span></div>
             </div>
+            {/* PLATFORM */}
             <span style={{display:"inline-flex",alignItems:"center",gap:4,fontFamily:F.mono,fontSize:8.5,color:ec,background:`${ec}12`,border:`1px solid ${ec}28`,borderRadius:3,padding:"2px 6px"}}><span style={{width:4,height:4,borderRadius:"50%",background:ec}}/>{el}</span>
+            {/* TYPE */}
             <span style={{fontFamily:F.mono,fontSize:8.5,fontWeight:600,color:tm.color,background:`${tm.color}10`,border:`1px solid ${tm.color}25`,borderRadius:3,padding:"2px 6px"}}>{tm.short}</span>
-            <span style={{fontFamily:F.mono,fontSize:13,fontWeight:700,color:C.green,textShadow:`0 0 10px ${C.green}50`,textAlign:"right"}}>+${row.amount.toFixed(2)}</span>
+            {/* AMOUNT + ROI% */}
+            <div style={{textAlign:"right"}}>
+              <div style={{fontFamily:F.mono,fontSize:13,fontWeight:700,color:C.green,textShadow:`0 0 10px ${C.green}50`,lineHeight:1.1}}>+${row.amount.toFixed(2)}</div>
+              <div style={{fontFamily:F.mono,fontSize:8,fontWeight:600,color:`${C.green}99`,marginTop:2}}>(+{roiPct}%)</div>
+            </div>
+            {/* TIME */}
             <span style={{fontFamily:F.mono,fontSize:9.5,color:C.textSub,textAlign:"right"}}>{row.time}</span>
+            {/* LINK */}
             <div style={{display:"flex",justifyContent:"center"}}><div style={{width:22,height:22,borderRadius:5,cursor:"pointer",background:`rgba(255,255,255,0.03)`,border:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:C.textDim,transition:"all .12s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=C.gold+"60";e.currentTarget.style.background=C.goldDim;}} onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.background="rgba(255,255,255,0.03)";}}>↗</div></div>
           </div>);
         })}
       </div>
-      <div style={{flexShrink:0,borderTop:`1px solid ${C.border}`,padding:"10px 18px",display:"flex",background:C.bgCardB}}>
-        {[{label:"TOTAL CLAIMED",val:`+$${earned.toFixed(2)}`,color:C.green},{label:"PENDING",val:`+$${pending.toFixed(2)}`,color:C.goldB},{label:"ACTIVE MARKETS",val:`${new Set(rewards.map(r=>r.marketId)).size} markets`},{label:"REWARD EVENTS",val:`${rewards.length} total`}].map(({label,val,color},i)=>(
-          <div key={i} style={{flex:1,borderRight:i<3?`1px solid ${C.border}`:"none",paddingRight:16,marginRight:16}}>
-            <div style={{fontFamily:F.mono,fontSize:8,color:C.textDim,letterSpacing:1,marginBottom:4}}>{label}</div>
-            <div style={{fontFamily:F.mono,fontSize:13,fontWeight:700,color:color||C.text}}>{val}</div>
-          </div>
-        ))}
+      {/* Pagination footer */}
+      <div style={{flexShrink:0,borderTop:`1px solid ${C.border}`,padding:"6px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",background:C.bgCardB,gap:12}}>
+        <span style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,flexShrink:0}}>{visible.length} reward events</span>
+        <div style={{display:"flex",alignItems:"center",gap:4}}>
+          <button onClick={()=>setRwTabPage(1)} disabled={rwTabPage===1} style={{padding:"3px 7px",borderRadius:4,border:`1px solid ${rwTabPage===1?C.borderC:C.border}`,background:"transparent",fontFamily:F.mono,fontSize:9,color:rwTabPage===1?C.textMute:C.textSub,cursor:rwTabPage===1?"default":"pointer",transition:"all .15s"}} onMouseEnter={e=>{if(rwTabPage>1)e.currentTarget.style.borderColor=C.green+"55";}} onMouseLeave={e=>e.currentTarget.style.borderColor=rwTabPage===1?C.borderC:C.border}>«</button>
+          <button onClick={()=>setRwTabPage(p=>Math.max(1,p-1))} disabled={rwTabPage===1} style={{padding:"3px 7px",borderRadius:4,border:`1px solid ${rwTabPage===1?C.borderC:C.border}`,background:"transparent",fontFamily:F.mono,fontSize:9,color:rwTabPage===1?C.textMute:C.textSub,cursor:rwTabPage===1?"default":"pointer",transition:"all .15s"}} onMouseEnter={e=>{if(rwTabPage>1)e.currentTarget.style.borderColor=C.green+"55";}} onMouseLeave={e=>e.currentTarget.style.borderColor=rwTabPage===1?C.borderC:C.border}>‹</button>
+          {Array.from({length:rwTabPages},(_,i)=>i+1).filter(p=>p===1||p===rwTabPages||Math.abs(p-rwTabPage)<=1).reduce((acc,p,idx,arr)=>{if(idx>0&&p-arr[idx-1]>1)acc.push("…");acc.push(p);return acc;},[]).map((p,idx)=>
+            typeof p==="string"
+              ?<span key={idx} style={{fontFamily:F.mono,fontSize:9,color:C.textMute,padding:"0 2px"}}>…</span>
+              :<button key={p} onClick={()=>setRwTabPage(p)} style={{minWidth:26,padding:"3px 6px",borderRadius:4,border:`1px solid ${p===rwTabPage?C.green+"55":C.border}`,background:p===rwTabPage?C.greenDim:"transparent",fontFamily:F.mono,fontSize:9,fontWeight:p===rwTabPage?700:400,color:p===rwTabPage?C.green:C.textSub,cursor:"pointer",transition:"all .15s"}}>{p}</button>
+          )}
+          <button onClick={()=>setRwTabPage(p=>Math.min(rwTabPages,p+1))} disabled={rwTabPage===rwTabPages} style={{padding:"3px 7px",borderRadius:4,border:`1px solid ${rwTabPage===rwTabPages?C.borderC:C.border}`,background:"transparent",fontFamily:F.mono,fontSize:9,color:rwTabPage===rwTabPages?C.textMute:C.textSub,cursor:rwTabPage===rwTabPages?"default":"pointer",transition:"all .15s"}} onMouseEnter={e=>{if(rwTabPage<rwTabPages)e.currentTarget.style.borderColor=C.green+"55";}} onMouseLeave={e=>e.currentTarget.style.borderColor=rwTabPage===rwTabPages?C.borderC:C.border}>›</button>
+          <button onClick={()=>setRwTabPage(rwTabPages)} disabled={rwTabPage===rwTabPages} style={{padding:"3px 7px",borderRadius:4,border:`1px solid ${rwTabPage===rwTabPages?C.borderC:C.border}`,background:"transparent",fontFamily:F.mono,fontSize:9,color:rwTabPage===rwTabPages?C.textMute:C.textSub,cursor:rwTabPage===rwTabPages?"default":"pointer",transition:"all .15s"}} onMouseEnter={e=>{if(rwTabPage<rwTabPages)e.currentTarget.style.borderColor=C.green+"55";}} onMouseLeave={e=>e.currentTarget.style.borderColor=rwTabPage===rwTabPages?C.borderC:C.border}>»</button>
+        </div>
+        <span style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,flexShrink:0}}>Page {rwTabPage} of {rwTabPages}</span>
       </div>
     </div>
   );
 }
 
 // ─── POSITIONS TAB ────────────────────────────────────────────────────────────
+const POS_PER_PAGE=8;
 function PositionsTab({wallet}){
   const [sub,setSub]=useState("OPEN");
+  const [posPage,setPosPage]=useState(1);
   const positions=wallet.positions||{open:[],closed:[]};
   const rows=sub==="OPEN"?positions.open:positions.closed;
+  const posPages=Math.max(1,Math.ceil(rows.length/POS_PER_PAGE));
+  const pagedPos=rows.slice((posPage-1)*POS_PER_PAGE,posPage*POS_PER_PAGE);
   const openPnl=(positions.open||[]).reduce((s,p)=>s+p.pnl,0);
   const closedPnl=(positions.closed||[]).reduce((s,p)=>s+p.pnl,0);
   const closedWins=(positions.closed||[]).filter(p=>p.won).length;
-  const cols="3fr 56px 68px 68px 80px 1fr 100px 88px";
+  const cols="3fr 56px 68px 68px 80px 100px 88px";
   return(
     <div style={{flex:1,display:"flex",flexDirection:"column",background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden",minHeight:0}}>
       {/* Sub-tab bar */}
@@ -833,7 +1073,7 @@ function PositionsTab({wallet}){
           <span style={{fontFamily:F.mono,fontSize:8.5,color:C.textDim,letterSpacing:1}}>POSITIONS /</span>
           {[["OPEN",C.green],["CLOSED",C.red]].map(([label,color])=>{
             const isA=sub===label,count=label==="OPEN"?positions.open?.length||0:positions.closed?.length||0;
-            return(<button key={label} onClick={()=>setSub(label)} style={{display:"flex",alignItems:"center",gap:5,padding:"4px 11px",borderRadius:5,cursor:"pointer",border:"none",background:isA?`${color}12`:"transparent",outline:isA?`1px solid ${color}40`:"1px solid transparent",transition:"all .15s"}}>
+            return(<button key={label} onClick={()=>{setSub(label);setPosPage(1);}} style={{display:"flex",alignItems:"center",gap:5,padding:"4px 11px",borderRadius:5,cursor:"pointer",border:"none",background:isA?`${color}12`:"transparent",outline:isA?`1px solid ${color}40`:"1px solid transparent",transition:"all .15s"}}>
               <span style={{width:5,height:5,borderRadius:"50%",flexShrink:0,background:isA?color:C.textDim,boxShadow:isA?`0 0 7px ${color}`:"none",transition:"all .2s"}}/>
               <span style={{fontFamily:F.mono,fontSize:9,fontWeight:700,letterSpacing:0.8,color:isA?color:C.textDim}}>{label}</span>
               <span style={{fontFamily:F.mono,fontSize:7.5,background:isA?`${color}20`:C.bgCardC,color:isA?color:C.textDim,border:`1px solid ${isA?color+"40":C.border}`,borderRadius:8,padding:"0 5px"}}>{count}</span>
@@ -850,17 +1090,15 @@ function PositionsTab({wallet}){
       </div>
       {/* Col headers */}
       <div style={{flexShrink:0,display:"grid",gridTemplateColumns:cols,padding:"5px 18px",gap:8,borderBottom:`1px solid ${C.border}`}}>
-        {(sub==="OPEN"?["MARKET","SIDE","SIZE","ENTRY","CURRENT","RANGE","PNL","EXPIRY"]:["MARKET","SIDE","SIZE","ENTRY","EXIT","RANGE","PNL","CLOSED"]).map(h=><span key={h} style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,letterSpacing:1.2,textTransform:"uppercase"}}>{h}</span>)}
+        {(sub==="OPEN"?["MARKET","SIDE","SIZE","ENTRY","CURRENT","PNL","EXPIRY"]:["MARKET","SIDE","SIZE","ENTRY","EXIT","PNL","CLOSED"]).map(h=><span key={h} style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,letterSpacing:1.2,textTransform:"uppercase"}}>{h}</span>)}
       </div>
       <div style={{overflowY:"auto",flex:1}}>
         {rows.length===0&&<div style={{padding:40,textAlign:"center",color:C.textDim,fontFamily:F.mono,fontSize:11}}>No {sub.toLowerCase()} positions</div>}
-        {rows.map((pos,i)=>{
+        {pagedPos.map((pos,i)=>{
           const isOpen=sub==="OPEN",ec=ECO_COLOR[pos.eco]||C.textDim,el=ECOSYSTEMS.find(e=>e.id===pos.eco)?.label||pos.eco,sp=pos.side==="YES"||pos.side==="BUY";
           const cPrice=isOpen?pos.current:pos.exit, pricePos=cPrice>=pos.entry;
-          const ep=pos.entry*100, cp=cPrice*100;
           return(<div key={i} style={{display:"grid",gridTemplateColumns:cols,padding:"10px 18px",gap:8,alignItems:"center",borderBottom:`1px solid ${C.border}10`,transition:"background .1s"}} onMouseEnter={e=>e.currentTarget.style.background=`${ec}05`} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
             <div style={{display:"flex",alignItems:"center",gap:9,minWidth:0}}>
-              <div style={{width:30,height:30,flexShrink:0,borderRadius:7,background:`${ec}12`,border:`1px solid ${ec}28`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13}}>🎁</div>
               <div style={{minWidth:0}}>
                 <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:3}}><span style={{fontFamily:F.body,fontSize:11.5,fontWeight:500,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{pos.title}</span><Tag label={el} color={ec}/></div>
                 <span style={{fontFamily:F.mono,fontSize:8,color:C.textDim}}>{pos.id}</span>
@@ -870,13 +1108,6 @@ function PositionsTab({wallet}){
             <span style={{fontFamily:F.mono,fontSize:10.5,color:C.textSub}}>${pos.size.toLocaleString()}</span>
             <span style={{fontFamily:F.mono,fontSize:10.5,color:C.textDim}}>${pos.entry.toFixed(2)}</span>
             <span style={{fontFamily:F.mono,fontSize:10.5,fontWeight:600,color:pricePos?C.green:C.red}}>${cPrice?.toFixed(2)}</span>
-            <div style={{padding:"0 4px"}}>
-              <div style={{position:"relative",height:3,background:C.bgCardC,borderRadius:2,width:"100%"}}>
-                <div style={{position:"absolute",top:0,height:"100%",borderRadius:2,left:`${Math.min(ep,cp)}%`,width:`${Math.abs(cp-ep)}%`,background:pricePos?`${C.green}70`:`${C.red}70`}}/>
-                <div style={{position:"absolute",top:"50%",transform:"translate(-50%,-50%)",left:`${ep}%`,width:6,height:6,borderRadius:"50%",background:C.textDim,border:`1px solid ${C.bgCardC}`,zIndex:1}}/>
-                <div style={{position:"absolute",top:"50%",transform:"translate(-50%,-50%)",left:`${cp}%`,width:8,height:8,borderRadius:"50%",background:pricePos?C.green:C.red,border:`1.5px solid ${C.bgCard}`,boxShadow:`0 0 6px ${pricePos?C.green:C.red}`,zIndex:2}}/>
-              </div>
-            </div>
             <Pnl val={pos.pnl} pct={fp(pos.pnlPct)} size={11}/>
             <div>
               {isOpen?<div>
@@ -893,6 +1124,22 @@ function PositionsTab({wallet}){
           </div>);
         })}
       </div>
+      {/* Pagination footer */}
+      <div style={{flexShrink:0,borderTop:`1px solid ${C.border}`,padding:"6px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",background:C.bgCardB,gap:12}}>
+        <span style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,flexShrink:0}}>{rows.length} {sub.toLowerCase()} positions</span>
+        <div style={{display:"flex",alignItems:"center",gap:4}}>
+          <button onClick={()=>setPosPage(1)} disabled={posPage===1} style={{padding:"3px 7px",borderRadius:4,border:`1px solid ${posPage===1?C.borderC:C.border}`,background:"transparent",fontFamily:F.mono,fontSize:9,color:posPage===1?C.textMute:C.textSub,cursor:posPage===1?"default":"pointer",transition:"all .15s"}} onMouseEnter={e=>{if(posPage>1)e.currentTarget.style.borderColor=C.gold+"55";}} onMouseLeave={e=>e.currentTarget.style.borderColor=posPage===1?C.borderC:C.border}>«</button>
+          <button onClick={()=>setPosPage(p=>Math.max(1,p-1))} disabled={posPage===1} style={{padding:"3px 7px",borderRadius:4,border:`1px solid ${posPage===1?C.borderC:C.border}`,background:"transparent",fontFamily:F.mono,fontSize:9,color:posPage===1?C.textMute:C.textSub,cursor:posPage===1?"default":"pointer",transition:"all .15s"}} onMouseEnter={e=>{if(posPage>1)e.currentTarget.style.borderColor=C.gold+"55";}} onMouseLeave={e=>e.currentTarget.style.borderColor=posPage===1?C.borderC:C.border}>‹</button>
+          {Array.from({length:posPages},(_,i)=>i+1).filter(p=>p===1||p===posPages||Math.abs(p-posPage)<=1).reduce((acc,p,idx,arr)=>{if(idx>0&&p-arr[idx-1]>1)acc.push("…");acc.push(p);return acc;},[]).map((p,idx)=>
+            typeof p==="string"
+              ?<span key={idx} style={{fontFamily:F.mono,fontSize:9,color:C.textMute,padding:"0 2px"}}>…</span>
+              :<button key={p} onClick={()=>setPosPage(p)} style={{minWidth:26,padding:"3px 6px",borderRadius:4,border:`1px solid ${p===posPage?C.gold+"55":C.border}`,background:p===posPage?C.goldDim:"transparent",fontFamily:F.mono,fontSize:9,fontWeight:p===posPage?700:400,color:p===posPage?C.goldB:C.textSub,cursor:"pointer",transition:"all .15s"}}>{p}</button>
+          )}
+          <button onClick={()=>setPosPage(p=>Math.min(posPages,p+1))} disabled={posPage===posPages} style={{padding:"3px 7px",borderRadius:4,border:`1px solid ${posPage===posPages?C.borderC:C.border}`,background:"transparent",fontFamily:F.mono,fontSize:9,color:posPage===posPages?C.textMute:C.textSub,cursor:posPage===posPages?"default":"pointer",transition:"all .15s"}} onMouseEnter={e=>{if(posPage<posPages)e.currentTarget.style.borderColor=C.gold+"55";}} onMouseLeave={e=>e.currentTarget.style.borderColor=posPage===posPages?C.borderC:C.border}>›</button>
+          <button onClick={()=>setPosPage(posPages)} disabled={posPage===posPages} style={{padding:"3px 7px",borderRadius:4,border:`1px solid ${posPage===posPages?C.borderC:C.border}`,background:"transparent",fontFamily:F.mono,fontSize:9,color:posPage===posPages?C.textMute:C.textSub,cursor:posPage===posPages?"default":"pointer",transition:"all .15s"}} onMouseEnter={e=>{if(posPage<posPages)e.currentTarget.style.borderColor=C.gold+"55";}} onMouseLeave={e=>e.currentTarget.style.borderColor=posPage===posPages?C.borderC:C.border}>»</button>
+        </div>
+        <span style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim,flexShrink:0}}>Page {posPage} of {posPages}</span>
+      </div>
     </div>
   );
 }
@@ -900,9 +1147,12 @@ function PositionsTab({wallet}){
 // ─── PROFILE PAGE ─────────────────────────────────────────────────────────────
 function ProfilePage({query,onBack}){
   const [tab,setTab]=useState("POSITIONS");
+  const [selPlatform,setSelPlatform]=useState(null);
+  const [ddOpen,setDdOpen]=useState(false);
   const wallet=WALLETS[query]||WALLETS["0xA1b2c3d4e5f6789abc"];
-  const ec=ECO_COLOR[wallet.eco]||C.gold;
-  const eco=ECOSYSTEMS.find(e=>e.id===wallet.eco);
+  const activePlatformId=selPlatform||wallet.eco;
+  const ec=ECO_COLOR[activePlatformId]||C.gold;
+  const eco=ECOSYSTEMS.find(e=>e.id===activePlatformId);
 
   const TABS=[
     {id:"POSITIONS",  label:"Positions",   badge:(wallet.positions?.open?.length||0)+(wallet.positions?.closed?.length||0), bc:C.gold},
@@ -913,16 +1163,16 @@ function ProfilePage({query,onBack}){
 
   return(
     <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column"}}>
-      <div style={{padding:"18px 28px 0",flexShrink:0,background:`linear-gradient(180deg,${C.bgCardB},${C.bg})`}}>
+      <div style={{padding:"18px 28px 0",flexShrink:0,background:`linear-gradient(180deg,${C.bgCardB},${C.bg})`,position:"relative",zIndex:10}}>
         <button onClick={onBack} style={{display:"inline-flex",alignItems:"center",gap:6,background:"none",border:"none",cursor:"pointer",color:C.textDim,fontFamily:F.mono,fontSize:8.5,letterSpacing:1,marginBottom:16,padding:0,transition:"color .15s"}} onMouseEnter={e=>e.currentTarget.style.color=C.goldB} onMouseLeave={e=>e.currentTarget.style.color=C.textDim}>← BACK TO LEADERBOARD</button>
 
         {/* Hero card */}
-        <div style={{background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden",marginBottom:16,position:"relative"}}>
-          <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,transparent,${ec}60,transparent)`}}/>
-          <div style={{position:"absolute",top:0,left:0,width:3,height:"100%",background:`linear-gradient(180deg,${ec},${ec}18)`}}/>
-          <div style={{position:"absolute",top:-30,right:-30,width:220,height:160,background:`radial-gradient(ellipse,${ec}10 0%,transparent 70%)`,pointerEvents:"none"}}/>
+        <div style={{background:C.bgCard,border:`1px solid ${C.border}`,borderRadius:12,marginBottom:16,position:"relative"}}>
+          <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,transparent,${ec}60,transparent)`,transition:"background .3s"}}/>
+          <div style={{position:"absolute",top:0,left:0,width:3,height:"100%",background:`linear-gradient(180deg,${ec},${ec}18)`,transition:"background .3s"}}/>
+          <div style={{position:"absolute",top:-30,right:-30,width:220,height:160,background:`radial-gradient(ellipse,${ec}10 0%,transparent 70%)`,pointerEvents:"none",transition:"background .3s"}}/>
           <div style={{padding:"20px 24px 20px 28px",display:"flex",alignItems:"center",gap:20,position:"relative"}}>
-            <div style={{width:58,height:58,borderRadius:13,flexShrink:0,background:`${ec}16`,border:`1.5px solid ${ec}35`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:F.display,fontWeight:900,fontSize:22,color:ec,boxShadow:`0 4px 22px ${ec}20`}}>{wallet.handle[1]?.toUpperCase()}</div>
+            <div style={{width:58,height:58,borderRadius:13,flexShrink:0,background:`${ec}16`,border:`1.5px solid ${ec}35`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:F.display,fontWeight:900,fontSize:22,color:ec,boxShadow:`0 4px 22px ${ec}20`,transition:"all .3s"}}>{wallet.handle[1]?.toUpperCase()}</div>
             <div style={{flex:1,minWidth:0}}>
               <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
                 <span style={{fontFamily:F.display,fontWeight:900,fontSize:20,color:C.text,letterSpacing:-0.3}}>{wallet.handle}</span>
@@ -931,7 +1181,41 @@ function ProfilePage({query,onBack}){
               <div style={{display:"flex",alignItems:"center",gap:8}}>
                 <span style={{fontFamily:F.mono,fontSize:9,color:C.textDim}}>{wallet.address}</span>
                 <span style={{color:C.textMute}}>·</span>
-                <span style={{display:"inline-flex",alignItems:"center",gap:4,fontFamily:F.mono,fontSize:8.5,color:ec}}><span style={{width:5,height:5,borderRadius:"50%",background:ec}}/>{eco?.label} · {eco?.chain}</span>
+                {/* Platform dropdown */}
+                <div style={{position:"relative"}}>
+                  <button
+                    onClick={()=>setDdOpen(o=>!o)}
+                    onBlur={()=>setTimeout(()=>setDdOpen(false),120)}
+                    style={{display:"inline-flex",alignItems:"center",gap:5,background:ddOpen?`${ec}14`:`${ec}0a`,border:`1px solid ${ddOpen?ec+"55":ec+"28"}`,borderRadius:5,padding:"3px 8px 3px 7px",cursor:"pointer",transition:"all .15s",outline:"none"}}
+                  >
+                    <span style={{width:5,height:5,borderRadius:"50%",background:ec,boxShadow:`0 0 5px ${ec}`,flexShrink:0,transition:"background .3s"}}/>
+                    <span style={{fontFamily:F.mono,fontSize:8.5,color:ec,fontWeight:700,letterSpacing:0.3,transition:"color .3s"}}>{eco?.label}</span>
+                    <span style={{fontFamily:F.mono,fontSize:7.5,color:ec+"99",marginLeft:1,transition:"color .3s"}}>{eco?.chain}</span>
+                    <svg width="8" height="8" viewBox="0 0 8 8" fill="none" style={{marginLeft:2,flexShrink:0,transform:ddOpen?"rotate(180deg)":"rotate(0deg)",transition:"transform .2s"}}><path d="M1 2.5L4 5.5L7 2.5" stroke={ec} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </button>
+                  {ddOpen&&(
+                    <div style={{position:"absolute",top:"calc(100% + 5px)",left:0,zIndex:999,background:C.bgCardB,border:`1px solid ${C.borderB}`,borderRadius:8,padding:"4px",minWidth:160,boxShadow:`0 8px 32px rgba(0,0,0,0.55), 0 0 0 1px ${C.border}`}}>
+                      <div style={{fontFamily:F.mono,fontSize:7,color:C.textDim,letterSpacing:1.5,padding:"4px 8px 6px",textTransform:"uppercase"}}>Switch Platform</div>
+                      {ECOSYSTEMS.map(e=>{
+                        const isActive=e.id===activePlatformId;
+                        const isDefault=e.id===wallet.eco;
+                        return(
+                          <button key={e.id} onMouseDown={()=>{setSelPlatform(e.id);setDdOpen(false);}}
+                            style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"7px 10px",borderRadius:5,background:isActive?`${e.color}14`:"transparent",border:`1px solid ${isActive?e.color+"35":"transparent"}`,cursor:"pointer",transition:"all .12s",textAlign:"left"}}
+                            onMouseEnter={ev=>!isActive&&(ev.currentTarget.style.background=`${e.color}0d`)}
+                            onMouseLeave={ev=>!isActive&&(ev.currentTarget.style.background="transparent")}
+                          >
+                            <span style={{width:7,height:7,borderRadius:"50%",flexShrink:0,background:e.color,boxShadow:isActive?`0 0 6px ${e.color}`:"none",transition:"box-shadow .15s"}}/>
+                            <span style={{fontFamily:F.body,fontSize:11.5,color:isActive?C.text:C.textSub,fontWeight:isActive?600:400,flex:1}}>{e.label}</span>
+                            <span style={{fontFamily:F.mono,fontSize:7.5,color:C.textDim}}>{e.chain}</span>
+                            {isDefault&&<span style={{fontFamily:F.mono,fontSize:6.5,color:e.color,background:`${e.color}15`,border:`1px solid ${e.color}30`,borderRadius:3,padding:"1px 4px",letterSpacing:0.5,flexShrink:0}}>DEFAULT</span>}
+                            {isActive&&!isDefault&&<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5L4.2 7.2L8 3" stroke={e.color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
             <div style={{display:"flex",gap:0,flexShrink:0}}>

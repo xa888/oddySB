@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { cacheGetOrFetch } from "../cache/redis.js";
+import { cacheGetOrFetch } from "../cache/supabase.js";
 import * as tatum from "../providers/tatum.js";
 import { ok, err } from "../schema/types.js";
 
