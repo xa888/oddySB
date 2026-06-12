@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { cacheGetOrFetch } from "../cache/supabase.js";
 import * as tatum from "../providers/tatum.js";
+import * as polydata from "../providers/polydata.js";
 import { ok, err } from "../schema/types.js";
 
 const TTL_STATS = 60;
@@ -8,19 +9,34 @@ const TTL_TRENDING = 180;
 const TTL_ECOSYSTEMS = 600;
 
 export async function statsRoutes(app: FastifyInstance) {
-  // GET /v1/stats
+  // GET /v1/stats — live platform stats from Polydata, fallback to static
   app.get("/stats", async (_req, reply) => {
     try {
       const data = await cacheGetOrFetch(
         "oddy:stats:global",
-        async () => ({
-          openInterest: 4_800_000_000,
-          volume24h: 284_000_000,
-          liveTraders: 89_400,
-          activeMarkets: 142_000,
-          trackedWallets: 12_400,
-          alerts24h: 3_892,
-        }),
+        async () => {
+          try {
+            const raw = await polydata.getPlatformStats();
+            const r = raw as Record<string, unknown>;
+            return {
+              openInterest: Number(r.open_interest ?? r.openInterest ?? 4_800_000_000),
+              volume24h: Number(r.volume_24h ?? r.volume24h ?? r.daily_volume ?? 284_000_000),
+              liveTraders: Number(r.active_traders ?? r.live_traders ?? r.traders ?? 89_400),
+              activeMarkets: Number(r.active_markets ?? r.markets ?? 142_000),
+              trackedWallets: Number(r.tracked_wallets ?? 12_400),
+              alerts24h: Number(r.alerts_24h ?? 3_892),
+            };
+          } catch {
+            return {
+              openInterest: 4_800_000_000,
+              volume24h: 284_000_000,
+              liveTraders: 89_400,
+              activeMarkets: 142_000,
+              trackedWallets: 12_400,
+              alerts24h: 3_892,
+            };
+          }
+        },
         TTL_STATS,
       );
       return reply.send(ok(data, TTL_STATS));

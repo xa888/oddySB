@@ -3,8 +3,10 @@ import { cacheGetOrFetch } from "../cache/supabase.js";
 import * as tatum from "../providers/tatum.js";
 import * as synthesis from "../providers/synthesis.js";
 import * as predexon from "../providers/predexon.js";
+import * as polydata from "../providers/polydata.js";
 import { ok, err } from "../schema/types.js";
 import type { Trader } from "../schema/types.js";
+import { normalizePolydataTrader } from "../utils/normalizers.js";
 
 const TTL_TRADE = 300;    // 5 minutes
 const TTL_REWARDS = 600;  // 10 minutes
@@ -15,6 +17,19 @@ function tatumPeriod(period: string): tatum.TopTradersParams["timePeriod"] {
     "180d": "MONTH", "365d": "ALL", "all": "ALL",
   };
   return map[period] ?? "MONTH";
+}
+
+function polydataPeriod(period: string): polydata.LeaderboardPeriod {
+  if (period === "1d") return "1d";
+  if (period === "7d") return "7d";
+  return "30d";
+}
+
+async function fetchPolydataLeaderboard(period: string): Promise<Trader[]> {
+  const raw = await polydata.getLeaderboardTraders(polydataPeriod(period));
+  const r = raw as Record<string, unknown>;
+  const items = (r.traders ?? r.data ?? r.results ?? []) as Record<string, unknown>[];
+  return items.map((t, i) => normalizePolydataTrader(t, i + 1));
 }
 
 export async function leaderboardRoutes(app: FastifyInstance) {
@@ -42,6 +57,10 @@ export async function leaderboardRoutes(app: FastifyInstance) {
           }
 
           if (platform === "polymarket") {
+            // Polydata is primary; fall through to Tatum then Predexon
+            try {
+              return fetchPolydataLeaderboard(period);
+            } catch { /* fall through */ }
             try {
               return tatum.getTopTraders({
                 timePeriod: tatumPeriod(period),
@@ -49,13 +68,12 @@ export async function leaderboardRoutes(app: FastifyInstance) {
                 limit: Math.min(Number(limit), 50),
                 offset: Number(offset),
               });
-            } catch {
-              return predexon.getLeaderboard({
-                time_window: period,
-                limit: Number(limit),
-                offset: Number(offset),
-              });
-            }
+            } catch { /* fall through */ }
+            return predexon.getLeaderboard({
+              time_window: period,
+              limit: Number(limit),
+              offset: Number(offset),
+            });
           }
 
           return predexon.getLeaderboard({

@@ -6,6 +6,7 @@ import { statsRoutes } from "./routes/stats.js";
 import { leaderboardRoutes } from "./routes/leaderboard.js";
 import { walletRoutes } from "./routes/wallet.js";
 import { searchRoutes } from "./routes/search.js";
+import { marketsRoutes } from "./routes/markets.js";
 
 const PORT = Number(process.env.PORT ?? 3000);
 
@@ -33,6 +34,7 @@ await app.register(statsRoutes,       { prefix: "/v1" });
 await app.register(leaderboardRoutes, { prefix: "/v1/leaderboard" });
 await app.register(walletRoutes,      { prefix: "/v1/wallet" });
 await app.register(searchRoutes,      { prefix: "/v1" });
+await app.register(marketsRoutes,     { prefix: "/v1" });
 
 // Connect to Supabase (optional — API works without it, just uncached)
 try {

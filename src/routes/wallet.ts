@@ -3,7 +3,8 @@ import { cacheGetOrFetch } from "../cache/supabase.js";
 import * as predexon from "../providers/predexon.js";
 import * as synthesis from "../providers/synthesis.js";
 import * as radion from "../providers/radion.js";
-import { normalizePosition, normalizeActivity } from "../utils/normalizers.js";
+import * as polydata from "../providers/polydata.js";
+import { normalizePosition, normalizeActivity, normalizePolydataPosition, normalizePolydataTrade } from "../utils/normalizers.js";
 import { ok, err } from "../schema/types.js";
 import type { WalletProfile, FlowGraph, Position, Activity, Reward } from "../schema/types.js";
 
@@ -23,26 +24,45 @@ export async function walletRoutes(app: FastifyInstance) {
       const profile = await cacheGetOrFetch<WalletProfile>(
         cacheKey,
         async () => {
-          const [raw, radionScore] = await Promise.allSettled([
-            predexon.getWalletProfile(address),
+          const [pdResult, radionScore] = await Promise.allSettled([
+            polydata.getTraderStats(address),
             radion.getTraderAnalysis(address),
           ]);
 
-          const p = raw.status === "fulfilled" ? raw.value : {};
+          let p: Record<string, unknown> = {};
+
+          if (pdResult.status === "fulfilled") {
+            const r = pdResult.value as Record<string, unknown>;
+            // Polydata wraps stats under `stats` or `data` key
+            p = (r.stats ?? r.data ?? r) as Record<string, unknown>;
+          } else {
+            // Fallback to Predexon
+            try { p = await predexon.getWalletProfile(address) as Record<string, unknown>; } catch { /* ignore */ }
+          }
+
           const score = radionScore.status === "fulfilled" ? radionScore.value : null;
 
+          const dailyRaw = pdResult.status === "fulfilled"
+            ? ((pdResult.value as Record<string, unknown>).daily_pnl as Array<Record<string, unknown>> | null) ?? []
+            : [];
+
           return {
-            handle: (p.handle as string | null) ?? (p.username as string | null) ?? null,
+            handle: (p.username as string | null) ?? (p.handle as string | null) ?? null,
             address: address.toLowerCase(),
-            eco: (p.platform as WalletProfile["eco"]) ?? "polymarket",
+            eco: "polymarket" as WalletProfile["eco"],
             winRate: Number(p.win_rate ?? p.winRate ?? 0),
             riskScore: Number(p.risk_score ?? p.riskScore ?? 50),
-            volume: Number(p.total_volume ?? p.volume ?? 0),
-            pnl: Number(p.realized_pnl ?? p.pnl ?? 0),
-            pnlPct: Number(p.pnl_pct ?? p.pnlPct ?? 0),
-            pnlTimeSeries: (p.pnl_over_time as WalletProfile["pnlTimeSeries"]) ?? [],
-            tags: (p.tags as string[]) ?? [],
-            platformBreakdown: (p.platform_breakdown as WalletProfile["platformBreakdown"]) ?? [],
+            volume: Number(p.volume ?? p.total_volume ?? p.buy_volume ?? 0),
+            pnl: Number(p.profit ?? p.realized_pnl ?? p.pnl ?? 0),
+            pnlPct: Number(p.profit_pct ?? p.pnl_pct ?? p.pnlPct ?? 0),
+            pnlTimeSeries: dailyRaw.map((d) => ({
+              ts: Number(d.date ?? d.ts ?? 0),
+              realized: Number(d.realized ?? d.profit ?? 0),
+              unrealized: Number(d.unrealized ?? 0),
+              total: Number(d.total ?? d.realized ?? 0),
+            })),
+            tags: (p.tags as string[] | null) ?? [],
+            platformBreakdown: [],
             traderScore: score?.traderScore ?? null,
             estimatedEdge: score?.estimatedEdge ?? null,
           };
@@ -73,16 +93,26 @@ export async function walletRoutes(app: FastifyInstance) {
       const result = await cacheGetOrFetch<{ positions: Position[]; nextCursor: string | null }>(
         cacheKey,
         async () => {
-          const { positions: raw, nextCursor } = await predexon.getPositions(address, {
-            status: status as "open" | "closed",
-            cursor,
-            limit: Number(limit),
-          });
-
-          const positions = raw.map((r) =>
-            normalizePosition(r as Record<string, unknown>, platform as Position["eco"]),
-          );
-          return { positions, nextCursor };
+          try {
+            const raw = await polydata.getTraderMarkets(address, Number(limit));
+            const r = raw as Record<string, unknown>;
+            const items = (r.markets ?? r.data ?? r.results ?? []) as Record<string, unknown>[];
+            const all = items.map(normalizePolydataPosition);
+            const positions = status === "open"
+              ? all.filter((p) => p.closedAt === null)
+              : all.filter((p) => p.closedAt !== null);
+            return { positions, nextCursor: null };
+          } catch {
+            const { positions: raw, nextCursor } = await predexon.getPositions(address, {
+              status: status as "open" | "closed",
+              cursor,
+              limit: Number(limit),
+            });
+            const positions = raw.map((r) =>
+              normalizePosition(r as Record<string, unknown>, platform as Position["eco"]),
+            );
+            return { positions, nextCursor };
+          }
         },
         TTL_POSITIONS,
       );
@@ -153,20 +183,28 @@ export async function walletRoutes(app: FastifyInstance) {
       const result = await cacheGetOrFetch<{ activity: Activity[]; nextCursor: string | null }>(
         cacheKey,
         async () => {
-          const { trades: raw, nextCursor } = await predexon.getTrades(address, {
-            cursor,
-            limit: Number(limit),
-          });
-
-          let activity = raw.map((r) =>
-            normalizeActivity(r as Record<string, unknown>, "polymarket"),
-          );
-
-          if (type !== "all") {
-            activity = activity.filter((a) => a.type === type.toUpperCase());
+          try {
+            const raw = await polydata.getTraderTrades(address, Number(limit));
+            const r = raw as Record<string, unknown>;
+            const items = (r.trades ?? r.data ?? r.results ?? []) as Record<string, unknown>[];
+            let activity = items.map(normalizePolydataTrade);
+            if (type !== "all") {
+              activity = activity.filter((a) => a.type === type.toUpperCase());
+            }
+            return { activity, nextCursor: null };
+          } catch {
+            const { trades: raw, nextCursor } = await predexon.getTrades(address, {
+              cursor,
+              limit: Number(limit),
+            });
+            let activity = raw.map((r) =>
+              normalizeActivity(r as Record<string, unknown>, "polymarket"),
+            );
+            if (type !== "all") {
+              activity = activity.filter((a) => a.type === type.toUpperCase());
+            }
+            return { activity, nextCursor };
           }
-
-          return { activity, nextCursor };
         },
         TTL_ACTIVITY,
       );

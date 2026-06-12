@@ -5,6 +5,7 @@ import { statsRoutes } from "../../src/routes/stats.js";
 import { leaderboardRoutes } from "../../src/routes/leaderboard.js";
 import { walletRoutes } from "../../src/routes/wallet.js";
 import { searchRoutes } from "../../src/routes/search.js";
+import { marketsRoutes } from "../../src/routes/markets.js";
 
 let _handler: ReturnType<typeof serverless> | null = null;
 
@@ -23,6 +24,7 @@ async function getHandler() {
   await app.register(leaderboardRoutes, { prefix: "/v1/leaderboard" });
   await app.register(walletRoutes, { prefix: "/v1/wallet" });
   await app.register(searchRoutes, { prefix: "/v1" });
+  await app.register(marketsRoutes, { prefix: "/v1" });
   await app.ready();
 
   _handler = serverless(app);

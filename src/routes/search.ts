@@ -3,6 +3,7 @@ import { cacheGetOrFetch } from "../cache/supabase.js";
 import * as predexon from "../providers/predexon.js";
 import * as synthesis from "../providers/synthesis.js";
 import * as tatum from "../providers/tatum.js";
+import * as polydata from "../providers/polydata.js";
 import { ok, err } from "../schema/types.js";
 
 const TTL_SEARCH = 600;
@@ -76,7 +77,7 @@ export async function searchRoutes(app: FastifyInstance) {
     }
   });
 
-  // GET /v1/markets/search
+  // GET /v1/markets/search — Polydata primary, Predexon fallback
   app.get("/markets/search", async (req, reply) => {
     const { q = "", venues } = req.query as Record<string, string>;
     if (!q.trim()) {
@@ -84,10 +85,16 @@ export async function searchRoutes(app: FastifyInstance) {
     }
 
     try {
-      const venueList = venues ? venues.split(",") : undefined;
       const results = await cacheGetOrFetch(
         `oddy:markets:search:${Buffer.from(q).toString("base64")}`,
-        () => predexon.searchMarkets(q, venueList),
+        async () => {
+          try {
+            return polydata.searchMarkets(q);
+          } catch {
+            const venueList = venues ? venues.split(",") : undefined;
+            return predexon.searchMarkets(q, venueList);
+          }
+        },
         120,
       );
       return reply.send(ok(results, 120));
