@@ -1,5 +1,12 @@
 {
   "outputDirectory": ".",
+  "buildCommand": "npm run build",
+  "functions": {
+    "api/index.ts": {
+      "runtime": "@vercel/node",
+      "maxDuration": 30
+    }
+  },
   "rewrites": [
     { "source": "/health",    "destination": "/api/index" },
     { "source": "/v1/:path*", "destination": "/api/index" }
