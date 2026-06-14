@@ -16,6 +16,9 @@
 <script type="text/babel">
 const { useState, useEffect, useRef } = React;
 
+async function api(path){try{const r=await fetch(path);if(!r.ok)return null;const j=await r.json();return j.ok?j.data:null;}catch{return null;}}
+function actToRow(a){const m=Math.max(1,Math.floor((Date.now()-(a.timestamp||0)*1000)/60000));return{type:a.type,tok:{name:a.title||"Unknown",side:a.side||"YES",market:a.eco||"polymarket"},peer:a.counterparty||null,qty:a.qty||0,price:a.price||null,value:a.value||0,pnl:a.pnl!=null?((a.pnl>=0?"+":"-")+"$"+Math.abs(Math.round(a.pnl)).toLocaleString()):null,pnlPct:a.pnlPct||null,pnlPos:(a.pnl||0)>=0,minsAgo:m,hash:a.txHash||"0x...",isLP:(a.type||"").startsWith("LP_")};}
+
 // ─── DESIGN TOKENS ───────────────────────────────────────────────────────────
 const C = {
   bg:"#070705", bgDeep:"#040403", bgCard:"#0d0d0a", bgCardB:"#131310", bgCardC:"#191916", bgCardD:"#1f1f1b",
@@ -309,8 +312,14 @@ function TopNav({page,setPage,onAnalyze}){
 function HomePage({onAnalyze}){
   const [q,setQ]=useState("");const [focused,setFocused]=useState(false);
   const [sel,setSel]=useState(new Set(ECOSYSTEMS.map(e=>e.id)));
+  const [trending,setTrending]=useState(TRENDING);
   const toggle=id=>setSel(p=>{const n=new Set(p);n.has(id)?n.delete(id):n.add(id);return n;});
   const go=()=>onAnalyze(q.trim()||"0xA1b2c3d4e5f6789abc");
+  useEffect(()=>{
+    api("/v1/leaderboard/trade?period=1d&limit=4").then(d=>{
+      if(d?.traders?.length)setTrending(d.traders.map(t=>({addr:t.address,handle:t.handle||t.address.slice(0,10)+"...",pnl:"+"+(t.realizedPnl>=1e6?"$"+(t.realizedPnl/1e6).toFixed(2)+"M":t.realizedPnl>=1000?"$"+(t.realizedPnl/1000).toFixed(0)+"K":"$"+Math.round(t.realizedPnl)),pct:"+"+Math.round(t.pnlPct)+"%",eco:t.eco||"polymarket",flag:t.winRate>80?"WHALE":t.totalPos>300?"HOT":"NEW",vol:"$"+(t.totalBuy>=1e6?(t.totalBuy/1e6).toFixed(1)+"M":t.totalBuy>=1000?(t.totalBuy/1000).toFixed(0)+"K":Math.round(t.totalBuy)),winRate:Math.round(t.winRate),pos:t.totalPos,roi24h:"+"+Math.round(t.pnlPct)+"%"})));
+    });
+  },[]);
   const ticker=[{l:"OPEN INTEREST",v:"$4.8B",up:true},{l:"24H VOLUME",v:"$284M",up:true},{l:"LIVE TRADERS",v:"89.4K",up:true},{l:"MARKETS",v:"142K",up:false},{l:"TRACKED WALLETS",v:"12.4K",up:true},{l:"24H ALERTS",v:"3,892",up:true}];
   return(
     <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column"}}>
@@ -387,7 +396,7 @@ function HomePage({onAnalyze}){
             </div>
             <div style={{flex:1,position:"relative"}}>
               <div style={{position:"absolute",left:50,top:0,bottom:0,width:1,background:`linear-gradient(180deg,${C.gold}35 0%,${C.gold}05 100%)`,pointerEvents:"none"}}/>
-              {TRENDING.map((t,i)=>{
+              {trending.map((t,i)=>{
                 const ec=ECO_COLOR[t.eco]||C.gold;
                 const FL={HOT:{c:C.red,l:"HOT"},WHALE:{c:C.green,l:"WHALE"},NEW:{c:C.goldB,l:"NEW"}};
                 const flg=FL[t.flag]||FL.NEW;
@@ -572,7 +581,14 @@ function LeaderboardPage({onAnalyze}){
   const [platform,setPlatform]=useState("polymarket");const [time,setTime]=useState("30d");
   const [sortKey,setSortKey]=useState("realizedPnl");const [sortDir,setSortDir]=useState("desc");
   const [view,setView]=useState("TRADE");const [hov,setHov]=useState(null);
-  const raw=genLB(platform,time);const plat=LB_PLATFORMS.find(p=>p.id===platform);
+  const [apiData,setApiData]=useState(null);
+  useEffect(()=>{
+    setApiData(null);
+    api(`/v1/leaderboard/trade?platform=${platform}&period=${time}&limit=50`).then(d=>{
+      if(d?.traders?.length)setApiData(d.traders.map((t,i)=>({handle:t.handle||t.address,address:t.address,platform:t.eco||platform,totalPos:t.totalPos||0,totalBuy:t.totalBuy||0,totalSell:t.totalSell||0,winRate:Math.round(t.winRate)||0,realizedPnl:t.realizedPnl||0,pnlPct:t.pnlPct||0,avgPct:t.avgPct||0,avgBuySize:t.avgBuySize||0,lastActive:t.lastActive||1,rank:i+1})));
+    });
+  },[platform,time]);
+  const raw=apiData??genLB(platform,time);const plat=LB_PLATFORMS.find(p=>p.id===platform);
   const rows=[...raw].sort((a,b)=>{const va=a[sortKey],vb=b[sortKey];return sortDir==="asc"?(typeof va==="string"?va.localeCompare(vb):va-vb):(typeof vb==="string"?vb.localeCompare(va):vb-va);});
   const totalVol=rows.reduce((s,r)=>s+r.totalBuy+r.totalSell,0);
   const avgWR=rows.length?Math.round(rows.reduce((s,r)=>s+r.winRate,0)/rows.length):0;
@@ -809,7 +825,7 @@ const ACT_PER_PAGE=10;
 function ActivityTab({wallet}){
   const [filter,setFilter]=useState("ALL");
   const [actPage,setActPage]=useState(1);
-  const rows=buildActivity(wallet.address);
+  const rows=wallet.activityOverride||buildActivity(wallet.address);
   const AMAP={
     BUY:      {c:C.green, bg:C.greenDim },
     SELL:     {c:C.red,   bg:C.redDim   },
@@ -1149,7 +1165,44 @@ function ProfilePage({query,onBack}){
   const [tab,setTab]=useState("POSITIONS");
   const [selPlatform,setSelPlatform]=useState(null);
   const [ddOpen,setDdOpen]=useState(false);
-  const wallet=WALLETS[query]||WALLETS["0xA1b2c3d4e5f6789abc"];
+  const [apiWallet,setApiWallet]=useState(null);
+  useEffect(()=>{
+    setApiWallet(null);
+    const q=encodeURIComponent(query);
+    Promise.allSettled([
+      api(`/v1/wallet/${q}`),
+      api(`/v1/wallet/${q}/positions?status=open&limit=20`),
+      api(`/v1/wallet/${q}/positions?status=closed&limit=20`),
+      api(`/v1/wallet/${q}/activity?limit=30`),
+      api(`/v1/wallet/${q}/rewards`),
+    ]).then(([prof,openP,closedP,act,rw])=>{
+      const p=prof.status==="fulfilled"?prof.value:null;
+      const op=openP.status==="fulfilled"&&openP.value?openP.value.positions:null;
+      const cl=closedP.status==="fulfilled"&&closedP.value?closedP.value.positions:null;
+      const ac=act.status==="fulfilled"&&act.value?act.value.activity?.map(actToRow):null;
+      const rew=rw.status==="fulfilled"&&rw.value?rw.value.rewards:null;
+      if(p||op||cl||ac||rew)setApiWallet({profile:p,positions:(op||cl)?{open:op||[],closed:cl||[]}:null,activityOverride:ac,rewards:rew});
+    });
+  },[query]);
+  const sw=WALLETS[query]||WALLETS["0xA1b2c3d4e5f6789abc"];
+  const ap=apiWallet?.profile;
+  const wallet={
+    ...sw,
+    ...(ap?{
+      handle:ap.handle||sw.handle,
+      address:ap.address||sw.address,
+      eco:ap.eco||sw.eco,
+      winRate:ap.winRate>0?Math.round(ap.winRate):sw.winRate,
+      riskScore:ap.riskScore>0?Math.round(ap.riskScore):sw.riskScore,
+      volume:ap.volume>0?(ap.volume>=1e6?(ap.volume/1e6).toFixed(1)+"M":ap.volume>=1e3?(ap.volume/1e3).toFixed(0)+"K":String(Math.round(ap.volume))):sw.volume,
+      pnl:ap.pnl!==0?Math.round(ap.pnl).toLocaleString():sw.pnl,
+      pnlPct:ap.pnlPct!==0?Math.round(ap.pnlPct).toString():sw.pnlPct,
+      tags:ap.tags?.length?ap.tags:sw.tags,
+    }:{}),
+    positions:apiWallet?.positions||sw.positions,
+    activityOverride:apiWallet?.activityOverride,
+    rewards:apiWallet?.rewards||sw.rewards,
+  };
   const activePlatformId=selPlatform||wallet.eco;
   const ec=ECO_COLOR[activePlatformId]||C.gold;
   const eco=ECOSYSTEMS.find(e=>e.id===activePlatformId);
